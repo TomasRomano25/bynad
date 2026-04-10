@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 
 const scrolled = ref(false);
@@ -11,6 +11,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
 const page = usePage();
 const isAuth = page.props.auth?.user;
+const menuItems = computed(() => page.props.menuItems ?? []);
 </script>
 
 <template>
@@ -26,9 +27,13 @@ const isAuth = page.props.auth?.user;
 
                 <!-- Desktop nav -->
                 <nav class="hidden md:flex items-center gap-8">
-                    <Link href="/" class="text-sm text-gray-400 hover:text-white transition-colors">Inicio</Link>
-                    <a href="/#features" class="text-sm text-gray-400 hover:text-white transition-colors">Funciones</a>
-                    <Link href="/blog" class="text-sm text-gray-400 hover:text-white transition-colors">Blog</Link>
+                    <template v-for="item in menuItems" :key="item.id">
+                        <a v-if="item.url.startsWith('http') || item.url.startsWith('#') || item.url.includes('#')"
+                            :href="item.url" :target="item.target"
+                            class="text-sm text-gray-400 hover:text-white transition-colors">{{ item.label }}</a>
+                        <Link v-else :href="item.url" :target="item.target"
+                            class="text-sm text-gray-400 hover:text-white transition-colors">{{ item.label }}</Link>
+                    </template>
                 </nav>
 
                 <!-- Auth buttons -->
@@ -59,9 +64,13 @@ const isAuth = page.props.auth?.user;
 
             <!-- Mobile menu -->
             <div v-if="mobileOpen" class="md:hidden bg-[#050d1f]/95 backdrop-blur-xl border-t border-white/5 px-6 py-4 space-y-3">
-                <Link href="/" class="block text-sm text-gray-400 hover:text-white py-2">Inicio</Link>
-                <a href="/#features" class="block text-sm text-gray-400 hover:text-white py-2">Funciones</a>
-                <Link href="/blog" class="block text-sm text-gray-400 hover:text-white py-2">Blog</Link>
+                <template v-for="item in menuItems" :key="item.id">
+                    <a v-if="item.url.startsWith('http') || item.url.includes('#')"
+                        :href="item.url" :target="item.target"
+                        class="block text-sm text-gray-400 hover:text-white py-2">{{ item.label }}</a>
+                    <Link v-else :href="item.url"
+                        class="block text-sm text-gray-400 hover:text-white py-2">{{ item.label }}</Link>
+                </template>
                 <div class="pt-3 border-t border-white/10 flex flex-col gap-2">
                     <Link v-if="!isAuth" :href="route('login')" class="text-center py-2.5 text-sm text-gray-300 border border-white/10 rounded-xl hover:border-white/30">Iniciar sesion</Link>
                     <Link :href="isAuth ? route('dashboard') : route('register')" class="text-center py-2.5 text-sm font-medium bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl">

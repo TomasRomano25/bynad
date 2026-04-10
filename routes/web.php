@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\Admin\MenuController;
+use App\Http\Controllers\Admin\PostController as AdminPostController;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\CreditCardController;
@@ -94,6 +96,26 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/settings/backup', [SettingController::class, 'backup'])->name('settings.backup');
         Route::get('/settings/backups', [SettingController::class, 'listBackups'])->name('settings.backups');
     });
+});
+
+// Admin panel
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::redirect('/', '/admin/posts');
+
+    // Posts
+    Route::get('/posts', [AdminPostController::class, 'index'])->name('posts.index');
+    Route::get('/posts/create', [AdminPostController::class, 'create'])->name('posts.create');
+    Route::post('/posts', [AdminPostController::class, 'store'])->name('posts.store');
+    Route::get('/posts/{post}/edit', [AdminPostController::class, 'edit'])->name('posts.edit');
+    Route::put('/posts/{post}', [AdminPostController::class, 'update'])->name('posts.update');
+    Route::delete('/posts/{post}', [AdminPostController::class, 'destroy'])->name('posts.destroy');
+
+    // Menu
+    Route::get('/menu', [MenuController::class, 'index'])->name('menu.index');
+    Route::post('/menu', [MenuController::class, 'store'])->name('menu.store');
+    Route::put('/menu/reorder', [MenuController::class, 'reorder'])->name('menu.reorder');
+    Route::put('/menu/{menuItem}', [MenuController::class, 'update'])->name('menu.update');
+    Route::delete('/menu/{menuItem}', [MenuController::class, 'destroy'])->name('menu.destroy');
 });
 
 require __DIR__.'/auth.php';
