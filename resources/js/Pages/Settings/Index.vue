@@ -3,16 +3,10 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, onMounted } from 'vue';
 
-const props = defineProps({ settings: Object });
+const props = defineProps({ values: Object });
 const backups = ref([]);
 
-// Flatten settings groups immediately so inputs are bound from first render
-const settingsData = ref(
-    Object.values(props.settings).flat().reduce((acc, s) => {
-        acc[s.key] = s.value ?? '';
-        return acc;
-    }, {})
-);
+const form = ref({ ...props.values });
 
 onMounted(() => {
     loadBackups();
@@ -21,8 +15,7 @@ onMounted(() => {
 const saving = ref(false);
 const save = () => {
     saving.value = true;
-    const payload = Object.entries(settingsData.value).map(([key, value]) => ({ key, value }));
-    router.put(route('admin.settings.update'), { settings: payload }, {
+    router.put(route('admin.settings.update'), { values: form.value }, {
         onFinish: () => { saving.value = false; },
     });
 };
@@ -56,7 +49,7 @@ const loadBackups = async () => {
                     <p class="text-sm text-gray-500 mb-3">Este valor se usa para convertir entre pesos y dolares en toda la plataforma.</p>
                     <div class="flex items-center gap-3">
                         <span class="text-sm text-gray-600">1 USD =</span>
-                        <input v-model="settingsData.usd_rate" type="number" step="0.01" class="w-40 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" />
+                        <input v-model="form.usd_rate" type="number" step="0.01" class="w-40 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                         <span class="text-sm text-gray-600">ARS</span>
                     </div>
                 </div>
@@ -69,14 +62,14 @@ const loadBackups = async () => {
                     </h3>
                     <div class="space-y-3">
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-xs text-gray-500 mb-1">Host</label><input v-model="settingsData.smtp_host" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
-                            <div><label class="block text-xs text-gray-500 mb-1">Puerto</label><input v-model="settingsData.smtp_port" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
+                            <div><label class="block text-xs text-gray-500 mb-1">Host</label><input v-model="form.smtp_host" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" /></div>
+                            <div><label class="block text-xs text-gray-500 mb-1">Puerto</label><input v-model="form.smtp_port" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" /></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-xs text-gray-500 mb-1">Usuario</label><input v-model="settingsData.smtp_user" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
-                            <div><label class="block text-xs text-gray-500 mb-1">Password</label><input v-model="settingsData.smtp_password" type="password" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
+                            <div><label class="block text-xs text-gray-500 mb-1">Usuario</label><input v-model="form.smtp_user" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" /></div>
+                            <div><label class="block text-xs text-gray-500 mb-1">Password</label><input v-model="form.smtp_password" type="password" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" /></div>
                         </div>
-                        <div><label class="block text-xs text-gray-500 mb-1">Email remitente</label><input v-model="settingsData.smtp_from" type="email" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
+                        <div><label class="block text-xs text-gray-500 mb-1">Email remitente</label><input v-model="form.smtp_from" type="email" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" /></div>
                     </div>
                 </div>
 
@@ -96,11 +89,13 @@ const loadBackups = async () => {
                         <div class="grid grid-cols-2 gap-3 mb-4">
                             <div>
                                 <label class="block text-xs text-gray-500 mb-1">Frecuencia</label>
-                                <select v-model="settingsData.backup_frequency" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
-                                    <option value="daily">Diario</option><option value="weekly">Semanal</option><option value="monthly">Mensual</option>
+                                <select v-model="form.backup_frequency" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                    <option value="daily">Diario</option>
+                                    <option value="weekly">Semanal</option>
+                                    <option value="monthly">Mensual</option>
                                 </select>
                             </div>
-                            <div><label class="block text-xs text-gray-500 mb-1">Ruta de backups</label><input v-model="settingsData.backup_path" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
+                            <div><label class="block text-xs text-gray-500 mb-1">Ruta de backups</label><input v-model="form.backup_path" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" /></div>
                         </div>
                         <div v-if="backups.length" class="space-y-2">
                             <div v-for="b in backups" :key="b.name" class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">

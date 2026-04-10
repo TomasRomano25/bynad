@@ -10,26 +10,25 @@ class SettingController extends Controller
 {
     public function index()
     {
-        $settings = Setting::all()->groupBy('group');
+        $all = Setting::all();
+
+        // Flat key→value map for easy use in Vue
+        $values = $all->pluck('value', 'key')->toArray();
 
         return Inertia::render('Settings/Index', [
-            'settings' => $settings,
+            'values' => $values,
         ]);
     }
 
     public function update(Request $request)
     {
-        $validated = $request->validate([
-            'settings' => 'required|array',
-            'settings.*.key' => 'required|string',
-            'settings.*.value' => 'nullable|string',
-        ], [
-            'settings.required' => 'No se recibieron datos de configuracion.',
-        ]);
+        $data = $request->validate([
+            'values' => 'required|array',
+        ])['values'];
 
         try {
-            foreach ($validated['settings'] as $setting) {
-                Setting::where('key', $setting['key'])->update(['value' => $setting['value']]);
+            foreach ($data as $key => $value) {
+                Setting::where('key', $key)->update(['value' => $value ?? '']);
             }
 
             return redirect()->back()->with('success', 'La configuracion fue guardada correctamente.');
