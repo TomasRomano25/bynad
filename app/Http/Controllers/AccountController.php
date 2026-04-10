@@ -67,26 +67,20 @@ class AccountController extends Controller
     public function update(Request $request, Account $account)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'name' => 'required|string|max:255',
-            'type' => 'required|in:banco,billetera_virtual,efectivo,otro',
+            'user_id'     => 'required|exists:users,id',
+            'name'        => 'required|string|max:255',
+            'type'        => 'required|in:banco,billetera_virtual,efectivo,otro',
             'institution' => 'nullable|string|max:255',
-            'currency' => 'required|string|max:10',
-            'balance' => 'required|numeric',
-            'color' => 'nullable|string|max:7',
+            'currency'    => 'required|string|max:10',
+            'color'       => 'nullable|string|max:7',
         ], [
             'user_id.required' => 'Selecciona el titular de la cuenta.',
-            'name.required' => 'El nombre de la cuenta es obligatorio.',
-            'balance.required' => 'Ingresa el saldo de la cuenta.',
-            'balance.numeric' => 'El saldo debe ser un numero valido.',
+            'name.required'    => 'El nombre de la cuenta es obligatorio.',
         ]);
 
         try {
-            $usdRate = Setting::getUsdRate();
-            $validated['balance_usd'] = $validated['currency'] === 'USD'
-                ? $validated['balance']
-                : round($validated['balance'] / $usdRate, 2);
-
+            // Balance is never overwritten on edit — it's managed automatically
+            // by income/expense/transfer operations
             $account->update($validated);
 
             return redirect()->back()->with('success', 'La cuenta "' . $validated['name'] . '" fue actualizada.');
