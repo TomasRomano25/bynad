@@ -14,7 +14,7 @@ const selectedCard = ref(null);
 const editingExpense = ref(null);
 
 const cardForm = useForm({ user_id: '', name: '', brand: 'visa', last_four: '', bank: '', limit_amount: 0, closing_day: null, due_day: null, color: '#8b5cf6' });
-const expenseForm = useForm({ description: '', amount: 0, total_installments: 1, current_installment: 1, purchase_date: new Date().toISOString().split('T')[0], category: '' });
+const expenseForm = useForm({ description: '', amount: 0, currency: 'ARS', total_installments: 1, current_installment: 1, purchase_date: new Date().toISOString().split('T')[0], category: '' });
 
 const openCreateCard = () => { editingCard.value = null; cardForm.reset(); cardForm.user_id = props.familyUsers?.[0]?.id ?? ''; showCardModal.value = true; };
 const openEditCard = (card) => {
@@ -36,7 +36,7 @@ const destroyCard = (card) => { if (confirm('Eliminar esta tarjeta?')) useForm({
 const openAddExpense = (card) => { selectedCard.value = card; editingExpense.value = null; expenseForm.reset(); expenseForm.purchase_date = new Date().toISOString().split('T')[0]; showExpenseModal.value = true; };
 const openEditExpense = (card, expense) => {
     selectedCard.value = card; editingExpense.value = expense;
-    Object.assign(expenseForm, { description: expense.description, amount: expense.amount, total_installments: expense.total_installments, current_installment: expense.current_installment, purchase_date: expense.purchase_date?.split('T')[0], category: expense.category });
+    Object.assign(expenseForm, { description: expense.description, amount: expense.amount, currency: expense.currency ?? 'ARS', total_installments: expense.total_installments, current_installment: expense.current_installment, purchase_date: expense.purchase_date?.split('T')[0], category: expense.category });
     showExpenseModal.value = true;
 };
 
@@ -134,10 +134,10 @@ const brandLogos = { visa: '#1a1f71', mastercard: '#eb001b', amex: '#006fcf', na
                             <div v-for="expense in card.expenses" :key="expense.id" class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                                 <div>
                                     <p class="text-sm font-medium text-gray-700">{{ expense.description }}</p>
-                                    <p class="text-xs text-gray-400">Cuota {{ expense.current_installment }}/{{ expense.total_installments }} - {{ formatMoney(expense.installment_amount) }}/mes</p>
+                                    <p class="text-xs text-gray-400">Cuota {{ expense.current_installment }}/{{ expense.total_installments }} - {{ formatMoney(expense.installment_amount, expense.currency ?? 'ARS') }}/mes</p>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-sm font-bold text-gray-800">{{ formatMoney(expense.amount) }}</span>
+                                    <span class="text-sm font-bold text-gray-800">{{ formatMoney(expense.amount, expense.currency ?? 'ARS') }}</span>
                                     <button @click="openEditExpense(card, expense)" class="p-1 text-gray-400 hover:text-indigo-600"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
                                     <button @click="destroyExpense(expense)" class="p-1 text-gray-400 hover:text-rose-600"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                                 </div>
@@ -185,8 +185,9 @@ const brandLogos = { visa: '#1a1f71', mastercard: '#eb001b', amex: '#006fcf', na
         <Modal :show="showExpenseModal" @close="showExpenseModal = false" :title="editingExpense ? 'Editar Gasto' : 'Nuevo Gasto de Tarjeta'">
             <form @submit.prevent="submitExpense" class="space-y-4">
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripcion</label><input v-model="expenseForm.description" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-3 gap-4">
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Monto total</label><input v-model="expenseForm.amount" type="number" step="0.01" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Moneda</label><select v-model="expenseForm.currency" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Fecha compra</label><input v-model="expenseForm.purchase_date" type="date" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
                 </div>
                 <div class="grid grid-cols-3 gap-4">

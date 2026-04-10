@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Account;
 use App\Models\Asset;
 use App\Models\Setting;
 use Illuminate\Http\Request;
@@ -15,13 +16,20 @@ class AssetController extends Controller
         $family = $user->families()->first();
         $familyUserIds = $family ? $family->users()->pluck('users.id')->toArray() : [$user->id];
 
+        $usdRate = Setting::getUsdRate();
+
         $assets = Asset::whereIn('user_id', $familyUserIds)
             ->with('user')
             ->orderBy('type')
             ->get();
 
-        $totalArs = $assets->sum('value_ars');
-        $totalUsd = $assets->sum('value_usd');
+        $accounts = Account::whereIn('user_id', $familyUserIds)->with('user')->get();
+
+        $accountsArs = $accounts->sum(fn($a) => $a->currency === 'USD' ? $a->balance * $usdRate : $a->balance);
+        $accountsUsd = $accounts->sum(fn($a) => $a->currency === 'USD' ? $a->balance : round($a->balance / $usdRate, 2));
+
+        $totalArs = $assets->sum('value_ars') + $accountsArs;
+        $totalUsd = $assets->sum('value_usd') + $accountsUsd;
 
         $byType = $assets->groupBy('type')->map(function ($group, $type) {
             return [
@@ -36,11 +44,12 @@ class AssetController extends Controller
 
         return Inertia::render('Assets/Index', [
             'assets' => $assets,
+            'accounts' => $accounts,
             'totalArs' => round($totalArs, 2),
             'totalUsd' => round($totalUsd, 2),
             'byType' => $byType,
             'familyUsers' => $familyUsers,
-            'usdRate' => Setting::getUsdRate(),
+            'usdRate' => $usdRate,
         ]);
     }
 

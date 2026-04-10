@@ -5,7 +5,7 @@ import { Head, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import { formatMoney, assetTypes } from '@/helpers';
 
-const props = defineProps({ assets: Array, totalArs: Number, totalUsd: Number, byType: Array, familyUsers: Array, usdRate: Number });
+const props = defineProps({ assets: Array, accounts: Array, totalArs: Number, totalUsd: Number, byType: Array, familyUsers: Array, usdRate: Number });
 const showModal = ref(false);
 const editing = ref(null);
 const form = useForm({ user_id: '', name: '', type: 'inmueble', value_ars: 0, value_usd: 0, currency_input: 'ARS', description: '' });
@@ -68,6 +68,31 @@ const typeColors = { inmueble: '#6366f1', vehiculo: '#f59e0b', inversion: '#10b9
                     <p class="text-xs text-gray-500">{{ assetTypes[t.type] }}</p>
                     <p class="text-sm font-bold text-gray-800 mt-1">{{ formatMoney(t.total_usd, 'USD') }}</p>
                     <p class="text-xs text-gray-400">{{ t.count }} activo{{ t.count > 1 ? 's' : '' }}</p>
+                </div>
+            </div>
+
+            <!-- Cuentas bancarias y billeteras -->
+            <div v-if="accounts?.length" class="space-y-3">
+                <h2 class="text-base font-semibold text-gray-700">Cuentas bancarias y billeteras</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div v-for="account in accounts" :key="account.id" class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div :style="{ backgroundColor: (account.color || '#6366f1') + '20' }" class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
+                            <svg :style="{ color: account.color || '#6366f1' }" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-gray-800 truncate">{{ account.name }}</p>
+                            <p class="text-xs text-gray-400">{{ account.user?.name }}</p>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <p class="text-sm font-bold text-gray-800">{{ formatMoney(account.balance, account.currency) }}</p>
+                            <p class="text-xs text-gray-400">
+                                <template v-if="account.currency === 'USD'">≈ {{ formatMoney(account.balance * usdRate) }}</template>
+                                <template v-else>≈ {{ formatMoney(account.balance_usd, 'USD') }}</template>
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
