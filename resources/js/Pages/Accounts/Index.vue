@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/UI/Modal.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, Link } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import { formatMoney, accountTypes } from '@/helpers';
 
@@ -123,7 +123,13 @@ const typeIcons = {
                                 <template v-else>≈ {{ formatMoney(account.balance_usd, 'USD') }}</template>
                             </p>
                         </div>
-                        <span class="text-xs text-gray-400">{{ account.user?.name }}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-400">{{ account.user?.name }}</span>
+                            <Link :href="'/accounts/' + account.id" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1 transition-colors">
+                                Ver movimientos
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -40,6 +40,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
     Route::post('/accounts', [AccountController::class, 'store'])->name('accounts.store');
     Route::post('/accounts/transfer', [AccountController::class, 'transfer'])->name('accounts.transfer');
+    Route::get('/accounts/{account}', [AccountController::class, 'show'])->name('accounts.show');
     Route::put('/accounts/{account}', [AccountController::class, 'update'])->name('accounts.update');
     Route::delete('/accounts/{account}', [AccountController::class, 'destroy'])->name('accounts.destroy');
 
