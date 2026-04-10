@@ -20,7 +20,8 @@ class MakeUserAdmin extends Command
             return 1;
         }
 
-        $user->update(['is_admin' => true]);
+        $user->is_admin = true;
+        $user->save();
         $this->info("Usuario {$user->name} ({$user->email}) ahora es administrador.");
         return 0;
     }
