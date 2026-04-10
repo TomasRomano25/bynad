@@ -50,7 +50,9 @@ class AccountController extends Controller
 
         try {
             $usdRate = Setting::getUsdRate();
-            $validated['balance_usd'] = round($validated['balance'] / $usdRate, 2);
+            $validated['balance_usd'] = $validated['currency'] === 'USD'
+                ? $validated['balance']
+                : round($validated['balance'] / $usdRate, 2);
 
             Account::create($validated);
 
@@ -79,7 +81,9 @@ class AccountController extends Controller
 
         try {
             $usdRate = Setting::getUsdRate();
-            $validated['balance_usd'] = round($validated['balance'] / $usdRate, 2);
+            $validated['balance_usd'] = $validated['currency'] === 'USD'
+                ? $validated['balance']
+                : round($validated['balance'] / $usdRate, 2);
 
             $account->update($validated);
 

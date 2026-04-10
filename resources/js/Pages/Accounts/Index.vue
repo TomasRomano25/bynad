@@ -91,8 +91,11 @@ const typeIcons = {
                     </div>
                     <div class="flex items-end justify-between">
                         <div>
-                            <p class="text-2xl font-bold text-gray-800">{{ formatMoney(account.balance) }}</p>
-                            <p class="text-xs text-gray-400">{{ formatMoney(account.balance_usd, 'USD') }}</p>
+                            <p class="text-2xl font-bold text-gray-800">{{ formatMoney(account.balance, account.currency) }}</p>
+                            <p class="text-xs text-gray-400">
+                                <template v-if="account.currency === 'USD'">≈ {{ formatMoney(account.balance * usdRate) }} ARS</template>
+                                <template v-else>≈ {{ formatMoney(account.balance_usd, 'USD') }}</template>
+                            </p>
                         </div>
                         <span class="text-xs text-gray-400">{{ account.user?.name }}</span>
                     </div>
