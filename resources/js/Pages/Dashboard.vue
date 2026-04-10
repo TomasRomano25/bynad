@@ -2,8 +2,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import StatCard from '@/Components/UI/StatCard.vue';
 import MonthSelector from '@/Components/UI/MonthSelector.vue';
-import { Head, router } from '@inertiajs/vue3';
-import { ref, onMounted } from 'vue';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { ref, onMounted, computed } from 'vue';
 import { formatMoney } from '@/helpers';
 import { Chart, registerables } from 'chart.js';
 
@@ -17,9 +17,57 @@ const props = defineProps({
     budgets: Array,
     accounts: Array,
     familyUsers: Array,
+    familyCode: Number,
     filters: Object,
     usdRate: Number,
 });
+
+// Tabs
+const activeTab = ref('dashboard');
+
+// Auth user
+const page = usePage();
+const authUser = computed(() => page.props.auth.user);
+
+// Profile form
+const profileForm = useForm({
+    name:   authUser.value?.name   ?? '',
+    email:  authUser.value?.email  ?? '',
+    age:    authUser.value?.age    ?? '',
+    avatar: null,
+});
+const avatarPreview = ref(authUser.value?.avatar ? `/storage/${authUser.value.avatar}` : null);
+
+const onAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    profileForm.avatar = file;
+    avatarPreview.value = URL.createObjectURL(file);
+};
+
+const saveProfile = () => {
+    profileForm.post(route('profile.update'), {
+        method: 'patch',
+        forceFormData: true,
+        onSuccess: () => { profileForm.avatar = null; },
+    });
+};
+
+// Password form
+const passwordForm = useForm({ current_password: '', password: '', password_confirmation: '' });
+const savePassword = () => {
+    passwordForm.put(route('password.update'), {
+        onSuccess: () => passwordForm.reset(),
+    });
+};
+
+// Family code copy
+const codeCopied = ref(false);
+const copyCode = () => {
+    navigator.clipboard.writeText(String(props.familyCode));
+    codeCopied.value = true;
+    setTimeout(() => codeCopied.value = false, 2000);
+};
 
 const evolutionChart = ref(null);
 const categoryChart = ref(null);
@@ -101,6 +149,135 @@ onMounted(() => {
     <Head title="Dashboard" />
     <AuthenticatedLayout>
         <div class="space-y-6">
+            <!-- Tabs -->
+            <div class="flex items-center gap-1 border-b border-gray-200">
+                <button @click="activeTab = 'dashboard'"
+                    :class="['px-4 py-2.5 text-sm font-medium border-b-2 transition-colors', activeTab === 'dashboard' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700']">
+                    Dashboard
+                </button>
+                <button @click="activeTab = 'profile'"
+                    :class="['px-4 py-2.5 text-sm font-medium border-b-2 transition-colors', activeTab === 'profile' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700']">
+                    Mi Perfil
+                </button>
+            </div>
+
+            <!-- ── PERFIL TAB ── -->
+            <div v-if="activeTab === 'profile'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <!-- Codigo de familia -->
+                <div class="lg:col-span-3 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">Codigo de familia</p>
+                        <p class="text-4xl font-black text-indigo-700 tracking-widest">{{ familyCode ?? '—' }}</p>
+                        <p class="text-sm text-gray-500 mt-1">Compartí este código con tu pareja o familia para que se unan a tu cuenta.</p>
+                    </div>
+                    <button @click="copyCode"
+                        :class="['flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all', codeCopied ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700']">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path v-if="!codeCopied" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        {{ codeCopied ? 'Copiado!' : 'Copiar codigo' }}
+                    </button>
+                </div>
+
+                <!-- Miembros de la familia -->
+                <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
+                    <h2 class="text-sm font-semibold text-gray-700 mb-4">Miembros</h2>
+                    <div class="space-y-3">
+                        <div v-for="member in familyUsers" :key="member.id" class="flex items-center gap-3">
+                            <div v-if="member.avatar" class="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
+                                <img :src="`/storage/${member.avatar}`" class="w-full h-full object-cover" />
+                            </div>
+                            <div v-else class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center flex-shrink-0">
+                                <span class="text-white text-sm font-bold">{{ member.name.charAt(0).toUpperCase() }}</span>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-800">{{ member.name }}</p>
+                                <p class="text-xs text-gray-400">{{ member.email }}</p>
+                            </div>
+                            <span v-if="member.id === authUser?.id" class="ml-auto text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">Vos</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Editar perfil -->
+                <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-5">
+                    <h2 class="text-sm font-semibold text-gray-700">Editar perfil</h2>
+
+                    <!-- Avatar -->
+                    <div class="flex items-center gap-4">
+                        <div class="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center flex-shrink-0">
+                            <img v-if="avatarPreview" :src="avatarPreview" class="w-full h-full object-cover" />
+                            <span v-else class="text-white text-xl font-bold">{{ authUser?.name?.charAt(0)?.toUpperCase() }}</span>
+                        </div>
+                        <div>
+                            <label class="cursor-pointer text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                                Cambiar foto
+                                <input type="file" accept="image/*" class="hidden" @change="onAvatarChange" />
+                            </label>
+                            <p class="text-xs text-gray-400 mt-0.5">JPG, PNG hasta 2MB</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2">
+                            <label class="block text-xs text-gray-500 mb-1.5">Nombre</label>
+                            <input v-model="profileForm.name" type="text"
+                                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <p v-if="profileForm.errors.name" class="text-red-500 text-xs mt-1">{{ profileForm.errors.name }}</p>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-xs text-gray-500 mb-1.5">Email</label>
+                            <input v-model="profileForm.email" type="email"
+                                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <p v-if="profileForm.errors.email" class="text-red-500 text-xs mt-1">{{ profileForm.errors.email }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1.5">Edad</label>
+                            <input v-model="profileForm.age" type="number" min="1" max="120"
+                                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <p v-if="profileForm.errors.age" class="text-red-500 text-xs mt-1">{{ profileForm.errors.age }}</p>
+                        </div>
+                    </div>
+
+                    <button @click="saveProfile" :disabled="profileForm.processing"
+                        class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
+                        {{ profileForm.processing ? 'Guardando...' : 'Guardar cambios' }}
+                    </button>
+                </div>
+
+                <!-- Cambiar contraseña -->
+                <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-4">
+                    <h2 class="text-sm font-semibold text-gray-700">Cambiar contraseña</h2>
+
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1.5">Contraseña actual</label>
+                        <input v-model="passwordForm.current_password" type="password"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                        <p v-if="passwordForm.errors.current_password" class="text-red-500 text-xs mt-1">{{ passwordForm.errors.current_password }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1.5">Nueva contraseña</label>
+                        <input v-model="passwordForm.password" type="password"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                        <p v-if="passwordForm.errors.password" class="text-red-500 text-xs mt-1">{{ passwordForm.errors.password }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1.5">Confirmar nueva contraseña</label>
+                        <input v-model="passwordForm.password_confirmation" type="password"
+                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+
+                    <button @click="savePassword" :disabled="passwordForm.processing"
+                        class="w-full py-2.5 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
+                        {{ passwordForm.processing ? 'Cambiando...' : 'Cambiar contraseña' }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── DASHBOARD TAB ── -->
+            <template v-if="activeTab === 'dashboard'">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Dashboard</h1>
@@ -202,6 +379,7 @@ onMounted(() => {
                     <p class="text-lg font-bold text-gray-800">{{ formatMoney(stats.totalCreditCard) }}</p>
                 </div>
             </div>
+            </template>
         </div>
     </AuthenticatedLayout>
 </template>

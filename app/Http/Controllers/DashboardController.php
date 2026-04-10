@@ -163,7 +163,8 @@ class DashboardController extends Controller
             'expensesByUser' => $expensesByUser,
             'budgets' => $budgets,
             'accounts' => $accounts,
-            'familyUsers' => $familyUsers->map(fn($u) => ['id' => $u->id, 'name' => $u->name]),
+            'familyUsers' => $familyUsers->map(fn($u) => ['id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'avatar' => $u->avatar]),
+            'familyCode' => $family?->id,
             'filters' => [
                 'month' => (int) $month,
                 'year' => (int) $year,
