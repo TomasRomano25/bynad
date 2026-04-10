@@ -91,13 +91,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/supermarket/products/{product}', [SupermarketController::class, 'updateProduct'])->name('supermarket.products.update');
     Route::delete('/supermarket/products/{product}', [SupermarketController::class, 'destroyProduct'])->name('supermarket.products.destroy');
 
-    // Settings (admin only)
-    Route::middleware('admin')->group(function () {
-        Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
-        Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
-        Route::post('/settings/backup', [SettingController::class, 'backup'])->name('settings.backup');
-        Route::get('/settings/backups', [SettingController::class, 'listBackups'])->name('settings.backups');
-    });
 });
 
 // Admin panel
@@ -118,6 +111,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/menu/reorder', [MenuController::class, 'reorder'])->name('menu.reorder');
     Route::put('/menu/{menuItem}', [MenuController::class, 'update'])->name('menu.update');
     Route::delete('/menu/{menuItem}', [MenuController::class, 'destroy'])->name('menu.destroy');
+
+    // Settings
+    Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
+    Route::put('/settings', [SettingController::class, 'update'])->name('settings.update');
+    Route::post('/settings/backup', [SettingController::class, 'backup'])->name('settings.backup');
+    Route::get('/settings/backups', [SettingController::class, 'listBackups'])->name('settings.backups');
 });
 
 require __DIR__.'/auth.php';

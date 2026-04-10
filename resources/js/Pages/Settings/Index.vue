@@ -1,5 +1,5 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, onMounted } from 'vue';
 
@@ -20,16 +20,16 @@ const saving = ref(false);
 const save = () => {
     saving.value = true;
     const payload = Object.entries(settingsData.value).map(([key, value]) => ({ key, value }));
-    router.put(route('settings.update'), { settings: payload }, {
+    router.put(route('admin.settings.update'), { settings: payload }, {
         onFinish: () => { saving.value = false; },
     });
 };
 
-const createBackup = () => { router.post(route('settings.backup')); };
+const createBackup = () => { router.post(route('admin.settings.backup')); };
 
 const loadBackups = async () => {
     try {
-        const res = await fetch(route('settings.backups'));
+        const res = await fetch(route('admin.settings.backups'));
         backups.value = await res.json();
     } catch (e) {}
 };
@@ -37,7 +37,7 @@ const loadBackups = async () => {
 
 <template>
     <Head title="Configuracion" />
-    <AuthenticatedLayout>
+    <AdminLayout>
         <div class="space-y-6">
             <div>
                 <h1 class="text-2xl font-bold text-gray-800">Configuracion</h1>
@@ -122,5 +122,5 @@ const loadBackups = async () => {
                 </button>
             </div>
         </div>
-    </AuthenticatedLayout>
+    </AdminLayout>
 </template>
