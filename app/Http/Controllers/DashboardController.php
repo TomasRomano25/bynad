@@ -81,10 +81,33 @@ class DashboardController extends Controller
         $necessaryExpenses   = $variableRows->where('is_necessary', true)->sum($toArs);
         $unnecessaryExpenses = $variableRows->where('is_necessary', false)->sum($toArs);
 
-        // Gastos por categoría (variables, ARS)
-        $expensesByCategory = $variableRows->groupBy('category')->map(function ($group, $cat) use ($toArs) {
-            return ['category' => $cat, 'total' => round($group->sum($toArs), 2)];
-        })->values();
+        // Gastos por categoría: variables + gastos fijos pagados (ambos en ARS)
+        $categoryTotals = [];
+
+        foreach ($variableRows as $e) {
+            $cat = $e->category ?: 'Sin categoría';
+            $categoryTotals[$cat] = ($categoryTotals[$cat] ?? 0) + $toArs($e);
+        }
+
+        $fixedPaidRows = DB::table('fixed_expenses')
+            ->join('fixed_expense_payments', 'fixed_expenses.id', '=', 'fixed_expense_payments.fixed_expense_id')
+            ->whereIn('fixed_expenses.user_id', $userIds)
+            ->where('fixed_expense_payments.month', $month)
+            ->where('fixed_expense_payments.year', $year)
+            ->where('fixed_expense_payments.paid', true)
+            ->select('fixed_expenses.category', 'fixed_expenses.currency', 'fixed_expense_payments.amount_paid')
+            ->get();
+
+        foreach ($fixedPaidRows as $p) {
+            $cat = $p->category ?: 'Gastos Fijos';
+            $amountArs = ($p->currency ?? 'ARS') === 'USD' ? $p->amount_paid * $usdRate : $p->amount_paid;
+            $categoryTotals[$cat] = ($categoryTotals[$cat] ?? 0) + $amountArs;
+        }
+
+        $expensesByCategory = collect($categoryTotals)
+            ->map(fn($total, $cat) => ['category' => $cat, 'total' => round($total, 2)])
+            ->sortByDesc('total')
+            ->values();
 
         // Evolución mensual (últimos 6 meses) — incluye todos los tipos
         $monthlyEvolution = [];

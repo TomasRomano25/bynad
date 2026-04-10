@@ -4,7 +4,7 @@ import Modal from '@/Components/UI/Modal.vue';
 import MonthSelector from '@/Components/UI/MonthSelector.vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
-import { formatMoney } from '@/helpers';
+import { formatMoney, fixedExpenseCategories } from '@/helpers';
 
 const props = defineProps({ expenses: Array, accounts: Array, familyUsers: Array, filters: Object, usdRate: Number });
 const showModal = ref(false);
@@ -146,7 +146,13 @@ const totalPending = () => totalExpenses() - totalPaid();
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Cuenta</label><select v-model="form.account_id" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"><option :value="null">Seleccionar...</option><option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }}</option></select></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Categoria</label><input v-model="form.category" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Ej: Servicios" /></div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                        <input v-model="form.category" type="text" list="fixed-categories" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Elegir o escribir..." />
+                        <datalist id="fixed-categories">
+                            <option v-for="cat in fixedExpenseCategories" :key="cat" :value="cat" />
+                        </datalist>
+                    </div>
                 </div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Notas</label><textarea v-model="form.notes" rows="2" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"></textarea></div>
                 <div class="flex justify-end gap-3 pt-4">

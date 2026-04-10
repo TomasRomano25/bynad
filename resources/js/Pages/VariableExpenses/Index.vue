@@ -4,7 +4,7 @@ import Modal from '@/Components/UI/Modal.vue';
 import MonthSelector from '@/Components/UI/MonthSelector.vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
-import { formatMoney } from '@/helpers';
+import { formatMoney, variableExpenseCategories } from '@/helpers';
 
 const props = defineProps({ expenses: Array, accounts: Array, budgets: Array, familyUsers: Array, filters: Object, totals: Object, usdRate: Number });
 const showModal = ref(false);
@@ -192,7 +192,13 @@ const applyFilter = (key, value) => {
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Presupuesto</label><select v-model="form.budget_id" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"><option :value="null">Sin presupuesto</option><option v-for="b in budgets" :key="b.id" :value="b.id">{{ b.name }}</option></select></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Categoria</label><input v-model="form.category" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Ej: Comida" /></div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                        <input v-model="form.category" type="text" list="var-categories" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Elegir o escribir..." />
+                        <datalist id="var-categories">
+                            <option v-for="cat in variableExpenseCategories" :key="cat" :value="cat" />
+                        </datalist>
+                    </div>
                     <div class="flex items-end">
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input v-model="form.is_necessary" type="checkbox" class="w-5 h-5 rounded-lg border-gray-300 text-indigo-600 focus:ring-indigo-500" />
