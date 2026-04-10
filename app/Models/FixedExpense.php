@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class FixedExpense extends Model
 {
     protected $fillable = [
-        'user_id', 'account_id', 'name', 'amount', 'amount_usd', 'due_day', 'category', 'notes',
+        'user_id', 'account_id', 'name', 'amount', 'amount_usd', 'currency', 'due_day', 'category', 'notes',
     ];
 
     protected $casts = [

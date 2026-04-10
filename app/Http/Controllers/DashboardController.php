@@ -46,10 +46,10 @@ class DashboardController extends Controller
 
         $userIds = $filterUser === 'all' ? $familyUserIds : [(int) $filterUser];
 
-        // Ingresos
-        $totalIncomes = Income::whereIn('user_id', $userIds)
-            ->whereMonth('date', $month)->whereYear('date', $year)
-            ->sum('amount');
+        // Ingresos (ARS, convertidos desde USD si aplica)
+        $incomeRows = Income::whereIn('user_id', $userIds)
+            ->whereMonth('date', $month)->whereYear('date', $year)->get();
+        $totalIncomes = $incomeRows->sum(fn($i) => ($i->currency ?? 'ARS') === 'USD' ? $i->amount * $usdRate : $i->amount);
 
         // Gastos fijos pagados
         $totalFixedExpenses = DB::table('fixed_expenses')
@@ -60,10 +60,10 @@ class DashboardController extends Controller
             ->where('fixed_expense_payments.paid', true)
             ->sum('fixed_expense_payments.amount_paid');
 
-        // Gastos variables
-        $totalVariableExpenses = VariableExpense::whereIn('user_id', $userIds)
-            ->whereMonth('date', $month)->whereYear('date', $year)
-            ->sum('amount');
+        // Gastos variables (ARS, convertidos desde USD si aplica)
+        $variableRows = VariableExpense::whereIn('user_id', $userIds)
+            ->whereMonth('date', $month)->whereYear('date', $year)->get();
+        $totalVariableExpenses = $variableRows->sum(fn($e) => ($e->currency ?? 'ARS') === 'USD' ? $e->amount * $usdRate : $e->amount);
 
         // Supermercado
         $totalSupermarket = SupermarketPurchase::whereIn('user_id', $userIds)
@@ -76,15 +76,15 @@ class DashboardController extends Controller
         $totalExpenses = $totalFixedExpenses + $totalVariableExpenses + $totalSupermarket + $totalCreditCard;
         $balance = $totalIncomes - $totalExpenses;
 
-        // Necesarios vs innecesarios (gastos variables)
-        $necessaryExpenses   = VariableExpense::whereIn('user_id', $userIds)->whereMonth('date', $month)->whereYear('date', $year)->where('is_necessary', true)->sum('amount');
-        $unnecessaryExpenses = VariableExpense::whereIn('user_id', $userIds)->whereMonth('date', $month)->whereYear('date', $year)->where('is_necessary', false)->sum('amount');
+        // Necesarios vs innecesarios (gastos variables, ARS)
+        $toArs = fn($e) => ($e->currency ?? 'ARS') === 'USD' ? $e->amount * $usdRate : $e->amount;
+        $necessaryExpenses   = $variableRows->where('is_necessary', true)->sum($toArs);
+        $unnecessaryExpenses = $variableRows->where('is_necessary', false)->sum($toArs);
 
-        // Gastos por categoría (variables)
-        $expensesByCategory = VariableExpense::whereIn('user_id', $userIds)
-            ->whereMonth('date', $month)->whereYear('date', $year)
-            ->select('category', DB::raw('SUM(amount) as total'))
-            ->groupBy('category')->get();
+        // Gastos por categoría (variables, ARS)
+        $expensesByCategory = $variableRows->groupBy('category')->map(function ($group, $cat) use ($toArs) {
+            return ['category' => $cat, 'total' => round($group->sum($toArs), 2)];
+        })->values();
 
         // Evolución mensual (últimos 6 meses) — incluye todos los tipos
         $monthlyEvolution = [];
@@ -93,8 +93,10 @@ class DashboardController extends Controller
             $m = $d->month;
             $y = $d->year;
 
-            $inc  = Income::whereIn('user_id', $userIds)->whereMonth('date', $m)->whereYear('date', $y)->sum('amount');
-            $var  = VariableExpense::whereIn('user_id', $userIds)->whereMonth('date', $m)->whereYear('date', $y)->sum('amount');
+            $incRows = Income::whereIn('user_id', $userIds)->whereMonth('date', $m)->whereYear('date', $y)->get();
+            $inc = $incRows->sum(fn($r) => ($r->currency ?? 'ARS') === 'USD' ? $r->amount * $usdRate : $r->amount);
+            $varRows = VariableExpense::whereIn('user_id', $userIds)->whereMonth('date', $m)->whereYear('date', $y)->get();
+            $var = $varRows->sum(fn($r) => ($r->currency ?? 'ARS') === 'USD' ? $r->amount * $usdRate : $r->amount);
             $fix  = DB::table('fixed_expenses')
                 ->join('fixed_expense_payments', 'fixed_expenses.id', '=', 'fixed_expense_payments.fixed_expense_id')
                 ->whereIn('fixed_expenses.user_id', $userIds)
@@ -114,7 +116,8 @@ class DashboardController extends Controller
         $expensesByUser = [];
         $familyUsers = $family ? $family->users : collect([$user]);
         foreach ($familyUsers as $fu) {
-            $var   = VariableExpense::where('user_id', $fu->id)->whereMonth('date', $month)->whereYear('date', $year)->sum('amount');
+            $fuVarRows = VariableExpense::where('user_id', $fu->id)->whereMonth('date', $month)->whereYear('date', $year)->get();
+            $var = $fuVarRows->sum(fn($e) => ($e->currency ?? 'ARS') === 'USD' ? $e->amount * $usdRate : $e->amount);
             $fix   = DB::table('fixed_expenses')
                 ->join('fixed_expense_payments', 'fixed_expenses.id', '=', 'fixed_expense_payments.fixed_expense_id')
                 ->where('fixed_expenses.user_id', $fu->id)
@@ -151,9 +154,10 @@ class DashboardController extends Controller
         // Trend gastos innecesarios
         $prevMonth = $month == 1 ? 12 : $month - 1;
         $prevYear  = $month == 1 ? $year - 1 : $year;
-        $prevUnnecessary = VariableExpense::whereIn('user_id', $userIds)
+        $prevUnnRows = VariableExpense::whereIn('user_id', $userIds)
             ->whereMonth('date', $prevMonth)->whereYear('date', $prevYear)
-            ->where('is_necessary', false)->sum('amount');
+            ->where('is_necessary', false)->get();
+        $prevUnnecessary = $prevUnnRows->sum(fn($e) => ($e->currency ?? 'ARS') === 'USD' ? $e->amount * $usdRate : $e->amount);
         $unnecessaryTrend = $prevUnnecessary > 0
             ? round((($unnecessaryExpenses - $prevUnnecessary) / $prevUnnecessary) * 100, 1)
             : 0;

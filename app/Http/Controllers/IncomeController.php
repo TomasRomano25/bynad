@@ -36,27 +36,36 @@ class IncomeController extends Controller
 
         $incomes = $query->orderBy('date', 'desc')->get();
 
-        // Monthly evolution for chart
+        $usdRate = Setting::getUsdRate();
+
+        // Helper to convert income to ARS
+        $toArs = fn($i) => ($i->currency ?? 'ARS') === 'USD' ? $i->amount * $usdRate : $i->amount;
+
+        // Monthly evolution for chart (ARS)
         $monthlyData = [];
         for ($m = 1; $m <= 12; $m++) {
-            $total = Income::whereIn('user_id', $familyUserIds)
-                ->whereMonth('date', $m)->whereYear('date', $year)->sum('amount');
+            $rows = Income::whereIn('user_id', $familyUserIds)
+                ->whereMonth('date', $m)->whereYear('date', $year)->get();
             $monthlyData[] = [
                 'month' => $m,
-                'total' => round($total, 2),
+                'total' => round($rows->sum($toArs), 2),
             ];
         }
 
-        // By source/job
+        // By source/job (ARS)
         $bySource = Income::whereIn('user_id', $familyUserIds)
             ->whereYear('date', $year)
-            ->select('job', DB::raw('SUM(amount) as total'))
-            ->groupBy('job')
-            ->get();
+            ->get()
+            ->groupBy(fn($i) => $i->job ?: 'Sin especificar')
+            ->map(fn($group, $job) => [
+                'job' => $job,
+                'total' => round($group->sum($toArs), 2),
+            ])->values();
 
         $accounts = Account::whereIn('user_id', $familyUserIds)->get();
         $familyUsers = $family ? $family->users()->get(['users.id', 'users.name']) : collect([$user]);
-        $usdRate = Setting::getUsdRate();
+
+        $totalMonthArs = round($incomes->sum($toArs), 2);
 
         return Inertia::render('Incomes/Index', [
             'incomes' => $incomes,
@@ -70,8 +79,8 @@ class IncomeController extends Controller
                 'filter_user' => $filterUser,
                 'view' => $viewMode,
             ],
-            'totalMonth' => round($incomes->sum('amount'), 2),
-            'totalMonthUsd' => round($incomes->sum('amount') / $usdRate, 2),
+            'totalMonth' => $totalMonthArs,
+            'totalMonthUsd' => round($totalMonthArs / $usdRate, 2),
             'usdRate' => $usdRate,
         ]);
     }
@@ -79,31 +88,37 @@ class IncomeController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'description' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0',
-            'account_id' => 'nullable|exists:accounts,id',
-            'source' => 'nullable|string|max:255',
-            'job' => 'nullable|string|max:255',
-            'date' => 'required|date',
+            'user_id'      => 'required|exists:users,id',
+            'description'  => 'required|string|max:255',
+            'amount'       => 'required|numeric|min:0',
+            'currency'     => 'required|in:ARS,USD',
+            'account_id'   => 'nullable|exists:accounts,id',
+            'source'       => 'nullable|string|max:255',
+            'job'          => 'nullable|string|max:255',
+            'date'         => 'required|date',
             'is_recurring' => 'boolean',
-            'notes' => 'nullable|string',
+            'notes'        => 'nullable|string',
         ], [
-            'user_id.required' => 'Selecciona el titular del ingreso.',
+            'user_id.required'     => 'Selecciona el titular del ingreso.',
             'description.required' => 'Ingresa una descripcion del ingreso.',
-            'amount.required' => 'Ingresa el monto del ingreso.',
-            'amount.numeric' => 'El monto debe ser un numero valido.',
-            'amount.min' => 'El monto no puede ser negativo.',
-            'account_id.exists' => 'La cuenta seleccionada no existe.',
-            'date.required' => 'Selecciona la fecha del ingreso.',
-            'date.date' => 'La fecha ingresada no es valida.',
+            'amount.required'      => 'Ingresa el monto del ingreso.',
+            'amount.numeric'       => 'El monto debe ser un numero valido.',
+            'currency.required'    => 'Selecciona la moneda del ingreso.',
+            'date.required'        => 'Selecciona la fecha del ingreso.',
         ]);
 
         try {
             $usdRate = Setting::getUsdRate();
-            $validated['amount_usd'] = round($validated['amount'] / $usdRate, 2);
+            $validated['amount_usd'] = $validated['currency'] === 'USD'
+                ? $validated['amount']
+                : round($validated['amount'] / $usdRate, 2);
 
-            Income::create($validated);
+            $income = Income::create($validated);
+
+            // Add to linked account
+            if ($income->account_id) {
+                $this->adjustAccount($income->account_id, $validated['amount'], $validated['currency'], '+', $usdRate);
+            }
 
             return redirect()->back()->with('success', 'El ingreso "' . $validated['description'] . '" fue registrado.');
         } catch (\Exception $e) {
@@ -114,25 +129,39 @@ class IncomeController extends Controller
     public function update(Request $request, Income $income)
     {
         $validated = $request->validate([
-            'description' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0',
-            'account_id' => 'nullable|exists:accounts,id',
-            'source' => 'nullable|string|max:255',
-            'job' => 'nullable|string|max:255',
-            'date' => 'required|date',
+            'description'  => 'required|string|max:255',
+            'amount'       => 'required|numeric|min:0',
+            'currency'     => 'required|in:ARS,USD',
+            'account_id'   => 'nullable|exists:accounts,id',
+            'source'       => 'nullable|string|max:255',
+            'job'          => 'nullable|string|max:255',
+            'date'         => 'required|date',
             'is_recurring' => 'boolean',
-            'notes' => 'nullable|string',
+            'notes'        => 'nullable|string',
         ], [
             'description.required' => 'Ingresa una descripcion del ingreso.',
-            'amount.required' => 'Ingresa el monto del ingreso.',
-            'amount.numeric' => 'El monto debe ser un numero valido.',
+            'amount.required'      => 'Ingresa el monto del ingreso.',
+            'amount.numeric'       => 'El monto debe ser un numero valido.',
+            'currency.required'    => 'Selecciona la moneda del ingreso.',
         ]);
 
         try {
             $usdRate = Setting::getUsdRate();
-            $validated['amount_usd'] = round($validated['amount'] / $usdRate, 2);
+            $validated['amount_usd'] = $validated['currency'] === 'USD'
+                ? $validated['amount']
+                : round($validated['amount'] / $usdRate, 2);
+
+            // Reverse old account effect
+            if ($income->account_id) {
+                $this->adjustAccount($income->account_id, $income->amount, $income->currency ?? 'ARS', '-', $usdRate);
+            }
 
             $income->update($validated);
+
+            // Apply new account effect
+            if ($income->account_id) {
+                $this->adjustAccount($income->account_id, $validated['amount'], $validated['currency'], '+', $usdRate);
+            }
 
             return redirect()->back()->with('success', 'El ingreso "' . $validated['description'] . '" fue actualizado.');
         } catch (\Exception $e) {
@@ -143,11 +172,39 @@ class IncomeController extends Controller
     public function destroy(Income $income)
     {
         try {
-            $desc = $income->description;
+            $desc    = $income->description;
+            $usdRate = Setting::getUsdRate();
+
+            // Reverse account effect
+            if ($income->account_id) {
+                $this->adjustAccount($income->account_id, $income->amount, $income->currency ?? 'ARS', '-', Setting::getUsdRate());
+            }
+
             $income->delete();
             return redirect()->back()->with('success', 'El ingreso "' . $desc . '" fue eliminado.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'No se pudo eliminar el ingreso. Intenta nuevamente.');
         }
+    }
+
+    private function adjustAccount(int $accountId, float $amount, string $currency, string $direction, float $usdRate): void
+    {
+        $account = Account::find($accountId);
+        if (!$account) return;
+
+        // Convert amount to account's native currency
+        if ($account->currency === 'USD' && $currency === 'ARS') {
+            $delta = round($amount / $usdRate, 2);
+        } elseif ($account->currency === 'ARS' && $currency === 'USD') {
+            $delta = round($amount * $usdRate, 2);
+        } else {
+            $delta = $amount; // same currency
+        }
+
+        $account->balance = $direction === '+' ? $account->balance + $delta : $account->balance - $delta;
+        $account->balance_usd = $account->currency === 'USD'
+            ? round($account->balance, 2)
+            : round($account->balance / $usdRate, 2);
+        $account->save();
     }
 }

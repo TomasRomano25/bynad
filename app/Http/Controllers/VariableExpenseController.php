@@ -50,8 +50,10 @@ class VariableExpenseController extends Controller
         });
         $familyUsers = $family ? $family->users()->get(['users.id', 'users.name']) : collect([$user]);
 
-        $totalNecessary = $expenses->where('is_necessary', true)->sum('amount');
-        $totalUnnecessary = $expenses->where('is_necessary', false)->sum('amount');
+        $usdRate2 = Setting::getUsdRate();
+        $toArs = fn($e) => ($e->currency ?? 'ARS') === 'USD' ? $e->amount * $usdRate2 : $e->amount;
+        $totalNecessary = $expenses->where('is_necessary', true)->sum($toArs);
+        $totalUnnecessary = $expenses->where('is_necessary', false)->sum($toArs);
 
         return Inertia::render('VariableExpenses/Index', [
             'expenses' => $expenses,
@@ -77,32 +79,37 @@ class VariableExpenseController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'description' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0',
-            'account_id' => 'nullable|exists:accounts,id',
-            'budget_id' => 'nullable|exists:budgets,id',
-            'date' => 'required|date',
-            'category' => 'nullable|string|max:255',
+            'user_id'      => 'required|exists:users,id',
+            'description'  => 'required|string|max:255',
+            'amount'       => 'required|numeric|min:0',
+            'currency'     => 'required|in:ARS,USD',
+            'account_id'   => 'nullable|exists:accounts,id',
+            'budget_id'    => 'nullable|exists:budgets,id',
+            'date'         => 'required|date',
+            'category'     => 'nullable|string|max:255',
             'is_necessary' => 'boolean',
-            'notes' => 'nullable|string',
+            'notes'        => 'nullable|string',
         ], [
-            'user_id.required' => 'Selecciona el titular del gasto.',
+            'user_id.required'     => 'Selecciona el titular del gasto.',
             'description.required' => 'Ingresa una descripcion del gasto.',
-            'amount.required' => 'Ingresa el monto del gasto.',
-            'amount.numeric' => 'El monto debe ser un numero valido.',
-            'amount.min' => 'El monto no puede ser negativo.',
-            'account_id.exists' => 'La cuenta seleccionada no existe.',
-            'budget_id.exists' => 'El presupuesto seleccionado no existe.',
-            'date.required' => 'Selecciona la fecha del gasto.',
-            'date.date' => 'La fecha ingresada no es valida.',
+            'amount.required'      => 'Ingresa el monto del gasto.',
+            'amount.numeric'       => 'El monto debe ser un numero valido.',
+            'currency.required'    => 'Selecciona la moneda del gasto.',
+            'date.required'        => 'Selecciona la fecha del gasto.',
         ]);
 
         try {
             $usdRate = Setting::getUsdRate();
-            $validated['amount_usd'] = round($validated['amount'] / $usdRate, 2);
+            $validated['amount_usd'] = $validated['currency'] === 'USD'
+                ? $validated['amount']
+                : round($validated['amount'] / $usdRate, 2);
 
-            VariableExpense::create($validated);
+            $expense = VariableExpense::create($validated);
+
+            // Deduct from linked account
+            if ($expense->account_id) {
+                $this->adjustAccount($expense->account_id, $validated['amount'], $validated['currency'], '-', $usdRate);
+            }
 
             return redirect()->back()->with('success', 'El gasto "' . $validated['description'] . '" fue registrado.');
         } catch (\Exception $e) {
@@ -113,25 +120,39 @@ class VariableExpenseController extends Controller
     public function update(Request $request, VariableExpense $variableExpense)
     {
         $validated = $request->validate([
-            'description' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0',
-            'account_id' => 'nullable|exists:accounts,id',
-            'budget_id' => 'nullable|exists:budgets,id',
-            'date' => 'required|date',
-            'category' => 'nullable|string|max:255',
+            'description'  => 'required|string|max:255',
+            'amount'       => 'required|numeric|min:0',
+            'currency'     => 'required|in:ARS,USD',
+            'account_id'   => 'nullable|exists:accounts,id',
+            'budget_id'    => 'nullable|exists:budgets,id',
+            'date'         => 'required|date',
+            'category'     => 'nullable|string|max:255',
             'is_necessary' => 'boolean',
-            'notes' => 'nullable|string',
+            'notes'        => 'nullable|string',
         ], [
             'description.required' => 'Ingresa una descripcion del gasto.',
-            'amount.required' => 'Ingresa el monto del gasto.',
-            'amount.numeric' => 'El monto debe ser un numero valido.',
+            'amount.required'      => 'Ingresa el monto del gasto.',
+            'amount.numeric'       => 'El monto debe ser un numero valido.',
+            'currency.required'    => 'Selecciona la moneda del gasto.',
         ]);
 
         try {
             $usdRate = Setting::getUsdRate();
-            $validated['amount_usd'] = round($validated['amount'] / $usdRate, 2);
+            $validated['amount_usd'] = $validated['currency'] === 'USD'
+                ? $validated['amount']
+                : round($validated['amount'] / $usdRate, 2);
+
+            // Reverse old account effect
+            if ($variableExpense->account_id) {
+                $this->adjustAccount($variableExpense->account_id, $variableExpense->amount, $variableExpense->currency ?? 'ARS', '+', $usdRate);
+            }
 
             $variableExpense->update($validated);
+
+            // Apply new account effect
+            if ($variableExpense->account_id) {
+                $this->adjustAccount($variableExpense->account_id, $validated['amount'], $validated['currency'], '-', $usdRate);
+            }
 
             return redirect()->back()->with('success', 'El gasto "' . $validated['description'] . '" fue actualizado.');
         } catch (\Exception $e) {
@@ -143,10 +164,36 @@ class VariableExpenseController extends Controller
     {
         try {
             $desc = $variableExpense->description;
+
+            // Restore account balance
+            if ($variableExpense->account_id) {
+                $this->adjustAccount($variableExpense->account_id, $variableExpense->amount, $variableExpense->currency ?? 'ARS', '+', Setting::getUsdRate());
+            }
+
             $variableExpense->delete();
             return redirect()->back()->with('success', 'El gasto "' . $desc . '" fue eliminado.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'No se pudo eliminar el gasto. Intenta nuevamente.');
         }
+    }
+
+    private function adjustAccount(int $accountId, float $amount, string $currency, string $direction, float $usdRate): void
+    {
+        $account = Account::find($accountId);
+        if (!$account) return;
+
+        if ($account->currency === 'USD' && $currency === 'ARS') {
+            $delta = round($amount / $usdRate, 2);
+        } elseif ($account->currency === 'ARS' && $currency === 'USD') {
+            $delta = round($amount * $usdRate, 2);
+        } else {
+            $delta = $amount;
+        }
+
+        $account->balance = $direction === '+' ? $account->balance + $delta : $account->balance - $delta;
+        $account->balance_usd = $account->currency === 'USD'
+            ? round($account->balance, 2)
+            : round($account->balance / $usdRate, 2);
+        $account->save();
     }
 }

@@ -9,12 +9,12 @@ import { formatMoney } from '@/helpers';
 const props = defineProps({ expenses: Array, accounts: Array, familyUsers: Array, filters: Object, usdRate: Number });
 const showModal = ref(false);
 const editing = ref(null);
-const form = useForm({ user_id: '', name: '', amount: 0, account_id: null, due_day: null, category: '', notes: '' });
+const form = useForm({ user_id: '', name: '', amount: 0, currency: 'ARS', account_id: null, due_day: null, category: '', notes: '' });
 
-const openCreate = () => { editing.value = null; form.reset(); form.user_id = props.familyUsers?.[0]?.id ?? ''; showModal.value = true; };
+const openCreate = () => { editing.value = null; form.reset(); form.user_id = props.familyUsers?.[0]?.id ?? ''; form.currency = 'ARS'; showModal.value = true; };
 const openEdit = (e) => {
     editing.value = e;
-    Object.assign(form, { user_id: e.user_id, name: e.name, amount: e.amount, account_id: e.account_id, due_day: e.due_day, category: e.category, notes: e.notes });
+    Object.assign(form, { user_id: e.user_id, name: e.name, amount: e.amount, currency: e.currency ?? 'ARS', account_id: e.account_id, due_day: e.due_day, category: e.category, notes: e.notes });
     showModal.value = true;
 };
 
@@ -99,8 +99,11 @@ const totalPending = () => totalExpenses() - totalPaid();
                                     <p v-if="expense.category" class="text-xs text-gray-400">{{ expense.category }}</p>
                                 </td>
                                 <td class="px-6 py-4">
-                                    <p class="text-sm font-bold text-gray-800">{{ formatMoney(expense.amount) }}</p>
-                                    <p class="text-xs text-gray-400">{{ formatMoney(expense.amount_usd, 'USD') }}</p>
+                                    <p class="text-sm font-bold text-gray-800">{{ formatMoney(expense.amount, expense.currency ?? 'ARS') }}</p>
+                                    <p class="text-xs text-gray-400">
+                                        <template v-if="(expense.currency ?? 'ARS') === 'USD'">≈ {{ formatMoney(expense.amount * usdRate) }}</template>
+                                        <template v-else>≈ {{ formatMoney(expense.amount_usd, 'USD') }}</template>
+                                    </p>
                                 </td>
                                 <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">{{ expense.account?.name || '-' }}</span></td>
                                 <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">Dia {{ expense.due_day || '-' }}</span></td>
@@ -130,8 +133,15 @@ const totalPending = () => totalExpenses() - totalPaid();
                     <p v-if="form.errors.user_id" class="text-rose-500 text-xs mt-1">{{ form.errors.user_id }}</p>
                 </div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label><input v-model="form.name" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Ej: Alquiler" /></div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Monto</label><input v-model="form.amount" type="number" step="0.01" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Moneda</label>
+                        <div class="flex rounded-xl overflow-hidden border border-gray-300">
+                            <button type="button" @click="form.currency = 'ARS'" :class="form.currency === 'ARS' ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" class="flex-1 py-2.5 text-sm font-medium transition-colors">ARS</button>
+                            <button type="button" @click="form.currency = 'USD'" :class="form.currency === 'USD' ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" class="flex-1 py-2.5 text-sm font-medium transition-colors border-l border-gray-300">USD</button>
+                        </div>
+                    </div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Monto ({{ form.currency }})</label><input v-model="form.amount" type="number" step="0.01" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Dia vencimiento</label><input v-model="form.due_day" type="number" min="1" max="31" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">

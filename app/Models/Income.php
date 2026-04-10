@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Income extends Model
 {
     protected $fillable = [
-        'user_id', 'account_id', 'description', 'amount', 'amount_usd',
+        'user_id', 'account_id', 'description', 'amount', 'amount_usd', 'currency',
         'source', 'job', 'date', 'is_recurring', 'notes',
     ];
 

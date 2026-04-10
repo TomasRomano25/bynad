@@ -12,13 +12,13 @@ const showBudgetModal = ref(false);
 const editing = ref(null);
 const editingBudget = ref(null);
 
-const form = useForm({ user_id: '', description: '', amount: 0, account_id: null, budget_id: null, date: new Date().toISOString().split('T')[0], category: '', is_necessary: true, notes: '' });
+const form = useForm({ user_id: '', description: '', amount: 0, currency: 'ARS', account_id: null, budget_id: null, date: new Date().toISOString().split('T')[0], category: '', is_necessary: true, notes: '' });
 const budgetForm = useForm({ name: '', amount: 0, period: 'mensual', color: '#10b981' });
 
-const openCreate = () => { editing.value = null; form.reset(); form.user_id = props.familyUsers?.[0]?.id ?? ''; form.date = new Date().toISOString().split('T')[0]; showModal.value = true; };
+const openCreate = () => { editing.value = null; form.reset(); form.user_id = props.familyUsers?.[0]?.id ?? ''; form.date = new Date().toISOString().split('T')[0]; form.currency = 'ARS'; form.is_necessary = true; showModal.value = true; };
 const openEdit = (e) => {
     editing.value = e;
-    Object.assign(form, { user_id: e.user_id, description: e.description, amount: e.amount, account_id: e.account_id, budget_id: e.budget_id, date: e.date?.split('T')[0], category: e.category, is_necessary: e.is_necessary, notes: e.notes });
+    Object.assign(form, { user_id: e.user_id, description: e.description, amount: e.amount, currency: e.currency ?? 'ARS', account_id: e.account_id, budget_id: e.budget_id, date: e.date?.split('T')[0], category: e.category, is_necessary: e.is_necessary, notes: e.notes });
     showModal.value = true;
 };
 
@@ -136,7 +136,13 @@ const applyFilter = (key, value) => {
                                     <p class="text-sm font-medium text-gray-800">{{ e.description }}</p>
                                     <p class="text-xs text-gray-400">{{ e.user?.name }} - {{ e.date?.split('T')[0] }}</p>
                                 </td>
-                                <td class="px-6 py-4"><p class="text-sm font-bold text-gray-800">{{ formatMoney(e.amount) }}</p><p class="text-xs text-gray-400">{{ formatMoney(e.amount_usd, 'USD') }}</p></td>
+                                <td class="px-6 py-4">
+                                    <p class="text-sm font-bold text-gray-800">{{ formatMoney(e.amount, e.currency ?? 'ARS') }}</p>
+                                    <p class="text-xs text-gray-400">
+                                        <template v-if="(e.currency ?? 'ARS') === 'USD'">≈ {{ formatMoney(e.amount * usdRate) }}</template>
+                                        <template v-else>≈ {{ formatMoney(e.amount_usd, 'USD') }}</template>
+                                    </p>
+                                </td>
                                 <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">{{ e.account?.name || '-' }}</span></td>
                                 <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">{{ e.budget?.name || '-' }}</span></td>
                                 <td class="px-6 py-4 hidden md:table-cell">
@@ -170,8 +176,15 @@ const applyFilter = (key, value) => {
                     <p v-if="form.errors.user_id" class="text-rose-500 text-xs mt-1">{{ form.errors.user_id }}</p>
                 </div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripcion</label><input v-model="form.description" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Monto</label><input v-model="form.amount" type="number" step="0.01" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Moneda</label>
+                        <div class="flex rounded-xl overflow-hidden border border-gray-300">
+                            <button type="button" @click="form.currency = 'ARS'" :class="form.currency === 'ARS' ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" class="flex-1 py-2.5 text-sm font-medium transition-colors">ARS</button>
+                            <button type="button" @click="form.currency = 'USD'" :class="form.currency === 'USD' ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" class="flex-1 py-2.5 text-sm font-medium transition-colors border-l border-gray-300">USD</button>
+                        </div>
+                    </div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Monto ({{ form.currency }})</label><input v-model="form.amount" type="number" step="0.01" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Fecha</label><input v-model="form.date" type="date" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">

@@ -49,27 +49,27 @@ class FixedExpenseController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'name' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0',
+            'user_id'    => 'required|exists:users,id',
+            'name'       => 'required|string|max:255',
+            'amount'     => 'required|numeric|min:0',
+            'currency'   => 'required|in:ARS,USD',
             'account_id' => 'nullable|exists:accounts,id',
-            'due_day' => 'nullable|integer|min:1|max:31',
-            'category' => 'nullable|string|max:255',
-            'notes' => 'nullable|string',
+            'due_day'    => 'nullable|integer|min:1|max:31',
+            'category'   => 'nullable|string|max:255',
+            'notes'      => 'nullable|string',
         ], [
             'user_id.required' => 'Selecciona el titular del gasto.',
-            'name.required' => 'El nombre del gasto fijo es obligatorio.',
-            'amount.required' => 'Ingresa el monto del gasto.',
-            'amount.numeric' => 'El monto debe ser un numero valido.',
-            'amount.min' => 'El monto no puede ser negativo.',
-            'account_id.exists' => 'La cuenta seleccionada no existe.',
-            'due_day.min' => 'El dia de vencimiento debe ser entre 1 y 31.',
-            'due_day.max' => 'El dia de vencimiento debe ser entre 1 y 31.',
+            'name.required'    => 'El nombre del gasto fijo es obligatorio.',
+            'amount.required'  => 'Ingresa el monto del gasto.',
+            'amount.numeric'   => 'El monto debe ser un numero valido.',
+            'currency.required'=> 'Selecciona la moneda del gasto.',
         ]);
 
         try {
             $usdRate = Setting::getUsdRate();
-            $validated['amount_usd'] = round($validated['amount'] / $usdRate, 2);
+            $validated['amount_usd'] = $validated['currency'] === 'USD'
+                ? $validated['amount']
+                : round($validated['amount'] / $usdRate, 2);
 
             FixedExpense::create($validated);
 
@@ -82,21 +82,25 @@ class FixedExpenseController extends Controller
     public function update(Request $request, FixedExpense $fixedExpense)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0',
+            'name'       => 'required|string|max:255',
+            'amount'     => 'required|numeric|min:0',
+            'currency'   => 'required|in:ARS,USD',
             'account_id' => 'nullable|exists:accounts,id',
-            'due_day' => 'nullable|integer|min:1|max:31',
-            'category' => 'nullable|string|max:255',
-            'notes' => 'nullable|string',
+            'due_day'    => 'nullable|integer|min:1|max:31',
+            'category'   => 'nullable|string|max:255',
+            'notes'      => 'nullable|string',
         ], [
-            'name.required' => 'El nombre del gasto fijo es obligatorio.',
-            'amount.required' => 'Ingresa el monto del gasto.',
-            'amount.numeric' => 'El monto debe ser un numero valido.',
+            'name.required'    => 'El nombre del gasto fijo es obligatorio.',
+            'amount.required'  => 'Ingresa el monto del gasto.',
+            'amount.numeric'   => 'El monto debe ser un numero valido.',
+            'currency.required'=> 'Selecciona la moneda del gasto.',
         ]);
 
         try {
             $usdRate = Setting::getUsdRate();
-            $validated['amount_usd'] = round($validated['amount'] / $usdRate, 2);
+            $validated['amount_usd'] = $validated['currency'] === 'USD'
+                ? $validated['amount']
+                : round($validated['amount'] / $usdRate, 2);
 
             $fixedExpense->update($validated);
 

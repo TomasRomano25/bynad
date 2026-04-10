@@ -14,12 +14,12 @@ const editing = ref(null);
 const monthChart = ref(null);
 const sourceChart = ref(null);
 
-const form = useForm({ user_id: '', description: '', amount: 0, account_id: null, source: '', job: '', date: new Date().toISOString().split('T')[0], is_recurring: false, notes: '' });
+const form = useForm({ user_id: '', description: '', amount: 0, currency: 'ARS', account_id: null, source: '', job: '', date: new Date().toISOString().split('T')[0], is_recurring: false, notes: '' });
 
-const openCreate = () => { editing.value = null; form.reset(); form.user_id = props.familyUsers?.[0]?.id ?? ''; form.date = new Date().toISOString().split('T')[0]; showModal.value = true; };
+const openCreate = () => { editing.value = null; form.reset(); form.user_id = props.familyUsers?.[0]?.id ?? ''; form.date = new Date().toISOString().split('T')[0]; form.currency = 'ARS'; showModal.value = true; };
 const openEdit = (e) => {
     editing.value = e;
-    Object.assign(form, { user_id: e.user_id, description: e.description, amount: e.amount, account_id: e.account_id, source: e.source, job: e.job, date: e.date?.split('T')[0], is_recurring: e.is_recurring, notes: e.notes });
+    Object.assign(form, { user_id: e.user_id, description: e.description, amount: e.amount, currency: e.currency ?? 'ARS', account_id: e.account_id, source: e.source, job: e.job, date: e.date?.split('T')[0], is_recurring: e.is_recurring, notes: e.notes });
     showModal.value = true;
 };
 const submit = () => {
@@ -98,7 +98,13 @@ onMounted(() => {
                         <tbody>
                             <tr v-for="i in incomes" :key="i.id" class="border-b border-gray-50 hover:bg-gray-50/50">
                                 <td class="px-6 py-4"><p class="text-sm font-medium text-gray-800">{{ i.description }}</p><p class="text-xs text-gray-400">{{ i.date?.split('T')[0] }}</p></td>
-                                <td class="px-6 py-4"><p class="text-sm font-bold text-emerald-600">{{ formatMoney(i.amount) }}</p><p class="text-xs text-gray-400">{{ formatMoney(i.amount_usd, 'USD') }}</p></td>
+                                <td class="px-6 py-4">
+                                    <p class="text-sm font-bold text-emerald-600">{{ formatMoney(i.amount, i.currency ?? 'ARS') }}</p>
+                                    <p class="text-xs text-gray-400">
+                                        <template v-if="(i.currency ?? 'ARS') === 'USD'">≈ {{ formatMoney(i.amount * usdRate) }}</template>
+                                        <template v-else>≈ {{ formatMoney(i.amount_usd, 'USD') }}</template>
+                                    </p>
+                                </td>
                                 <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">{{ i.job || '-' }}</span></td>
                                 <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">{{ i.account?.name || '-' }}</span></td>
                                 <td class="px-6 py-4 hidden md:table-cell"><span class="text-sm text-gray-600">{{ i.user?.name }}</span></td>
@@ -127,8 +133,15 @@ onMounted(() => {
                     <p v-if="form.errors.user_id" class="text-rose-500 text-xs mt-1">{{ form.errors.user_id }}</p>
                 </div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripcion</label><input v-model="form.description" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Ej: Sueldo Abril" /></div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Monto</label><input v-model="form.amount" type="number" step="0.01" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Moneda</label>
+                        <div class="flex rounded-xl overflow-hidden border border-gray-300">
+                            <button type="button" @click="form.currency = 'ARS'" :class="form.currency === 'ARS' ? 'bg-emerald-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" class="flex-1 py-2.5 text-sm font-medium transition-colors">ARS</button>
+                            <button type="button" @click="form.currency = 'USD'" :class="form.currency === 'USD' ? 'bg-emerald-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" class="flex-1 py-2.5 text-sm font-medium transition-colors border-l border-gray-300">USD</button>
+                        </div>
+                    </div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Monto ({{ form.currency }})</label><input v-model="form.amount" type="number" step="0.01" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Fecha</label><input v-model="form.date" type="date" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">

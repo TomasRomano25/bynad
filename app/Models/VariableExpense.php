@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class VariableExpense extends Model
 {
     protected $fillable = [
-        'user_id', 'account_id', 'budget_id', 'description', 'amount', 'amount_usd',
+        'user_id', 'account_id', 'budget_id', 'description', 'amount', 'amount_usd', 'currency',
         'date', 'category', 'is_necessary', 'notes',
     ];
 
