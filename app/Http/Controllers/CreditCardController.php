@@ -41,6 +41,53 @@ class CreditCardController extends Controller
         ]);
     }
 
+    public function show(Request $request, CreditCard $creditCard)
+    {
+        $usdRate = Setting::getUsdRate();
+
+        $creditCard->load(['user', 'expenses' => function ($q) {
+            $q->orderBy('purchase_date', 'desc');
+        }]);
+
+        $expenses = $creditCard->expenses->map(function ($e) use ($usdRate) {
+            $paidInstallments     = max(0, $e->current_installment - 1);
+            $remainingInstallments = $e->total_installments - $paidInstallments;
+            $amountPaid           = round($paidInstallments * $e->installment_amount, 2);
+            $amountRemaining      = round($remainingInstallments * $e->installment_amount, 2);
+            $percentPaid          = $e->total_installments > 0
+                ? round($paidInstallments / $e->total_installments * 100, 1)
+                : 0;
+
+            $amountArs = ($e->currency ?? 'ARS') === 'USD' ? $e->amount * $usdRate : $e->amount;
+            $installmentArs = ($e->currency ?? 'ARS') === 'USD' ? $e->installment_amount * $usdRate : $e->installment_amount;
+
+            return array_merge($e->toArray(), [
+                'paid_installments'      => $paidInstallments,
+                'remaining_installments' => $remainingInstallments,
+                'amount_paid'            => $amountPaid,
+                'amount_remaining'       => $amountRemaining,
+                'percent_paid'           => $percentPaid,
+                'amount_ars'             => round($amountArs, 2),
+                'installment_ars'        => round($installmentArs, 2),
+            ]);
+        });
+
+        $usedAmount = $creditCard->expenses->sum(function ($e) use ($usdRate) {
+            return ($e->currency ?? 'ARS') === 'USD'
+                ? $e->installment_amount * $usdRate
+                : $e->installment_amount;
+        });
+
+        return Inertia::render('CreditCards/Show', [
+            'card'       => array_merge($creditCard->toArray(), [
+                'used_amount' => round($usedAmount, 2),
+                'available'   => round($creditCard->limit_amount - $usedAmount, 2),
+            ]),
+            'expenses'   => $expenses,
+            'usdRate'    => $usdRate,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

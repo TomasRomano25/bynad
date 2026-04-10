@@ -120,22 +120,56 @@ class FixedExpenseController extends Controller
     public function togglePayment(Request $request, FixedExpense $fixedExpense)
     {
         try {
-            $month = $request->get('month', now()->month);
-            $year = $request->get('year', now()->year);
+            $month   = $request->get('month', now()->month);
+            $year    = $request->get('year', now()->year);
             $usdRate = Setting::getUsdRate();
+
+            $wasAlreadyExisting = FixedExpensePayment::where([
+                'fixed_expense_id' => $fixedExpense->id,
+                'month' => $month,
+                'year'  => $year,
+            ])->exists();
 
             $payment = FixedExpensePayment::firstOrNew([
                 'fixed_expense_id' => $fixedExpense->id,
                 'month' => $month,
-                'year' => $year,
+                'year'  => $year,
             ]);
 
-            $payment->paid = !$payment->paid;
-            $payment->paid_date = $payment->paid ? now() : null;
-            $payment->amount_paid = $payment->paid ? $fixedExpense->amount : null;
+            $previouslyPaid    = $wasAlreadyExisting && $payment->paid;
+            $previousAccountId = $payment->account_id;
+
+            $payment->paid       = !($wasAlreadyExisting && $payment->paid);
+            $payment->paid_date  = $payment->paid ? now() : null;
+            $payment->amount_paid     = $payment->paid ? $fixedExpense->amount : null;
             $payment->amount_paid_usd = $payment->paid ? round($fixedExpense->amount / $usdRate, 2) : null;
             $payment->account_id = $request->get('account_id', $fixedExpense->account_id);
             $payment->save();
+
+            // Adjust account balance
+            $accountId = $payment->paid ? $payment->account_id : $previousAccountId;
+            if ($accountId) {
+                $account = Account::find($accountId);
+                if ($account) {
+                    if ($payment->paid) {
+                        // Deduct from account
+                        $deduct = $account->currency === 'USD'
+                            ? (float) $payment->amount_paid_usd
+                            : (float) $payment->amount_paid;
+                        $account->balance -= $deduct;
+                    } else {
+                        // Restore to account (was previously paid)
+                        $restore = $account->currency === 'USD'
+                            ? round($fixedExpense->amount / $usdRate, 2)
+                            : (float) $fixedExpense->amount;
+                        $account->balance += $restore;
+                    }
+                    $account->balance_usd = $account->currency === 'USD'
+                        ? round($account->balance, 2)
+                        : round($account->balance / $usdRate, 2);
+                    $account->save();
+                }
+            }
 
             $status = $payment->paid ? 'pagado' : 'pendiente';
             return redirect()->back()->with('success', '"' . $fixedExpense->name . '" marcado como ' . $status . '.');

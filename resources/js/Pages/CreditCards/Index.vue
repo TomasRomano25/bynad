@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/UI/Modal.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import { formatMoney, cardBrands } from '@/helpers';
 
@@ -127,7 +127,10 @@ const brandLogos = { visa: '#1a1f71', mastercard: '#eb001b', amex: '#006fcf', na
                         </div>
 
                         <div class="mt-4 flex items-center justify-between">
-                            <h4 class="text-sm font-semibold text-gray-700">Gastos</h4>
+                            <div class="flex items-center gap-3">
+                                <h4 class="text-sm font-semibold text-gray-700">Gastos</h4>
+                                <Link :href="route('credit-cards.show', card.id)" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium underline underline-offset-2">Ver detalle →</Link>
+                            </div>
                             <button @click="openAddExpense(card)" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">+ Agregar gasto</button>
                         </div>
                         <div v-if="card.expenses?.length" class="mt-3 space-y-2">

@@ -39,12 +39,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Accounts
     Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
     Route::post('/accounts', [AccountController::class, 'store'])->name('accounts.store');
+    Route::post('/accounts/transfer', [AccountController::class, 'transfer'])->name('accounts.transfer');
     Route::put('/accounts/{account}', [AccountController::class, 'update'])->name('accounts.update');
     Route::delete('/accounts/{account}', [AccountController::class, 'destroy'])->name('accounts.destroy');
 
     // Credit Cards
     Route::get('/credit-cards', [CreditCardController::class, 'index'])->name('credit-cards.index');
     Route::post('/credit-cards', [CreditCardController::class, 'store'])->name('credit-cards.store');
+    Route::get('/credit-cards/{creditCard}', [CreditCardController::class, 'show'])->name('credit-cards.show');
     Route::put('/credit-cards/{creditCard}', [CreditCardController::class, 'update'])->name('credit-cards.update');
     Route::delete('/credit-cards/{creditCard}', [CreditCardController::class, 'destroy'])->name('credit-cards.destroy');
     Route::post('/credit-cards/{creditCard}/expenses', [CreditCardController::class, 'storeExpense'])->name('credit-cards.expenses.store');

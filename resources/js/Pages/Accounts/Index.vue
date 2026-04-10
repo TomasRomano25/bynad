@@ -2,13 +2,33 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/UI/Modal.vue';
 import { Head, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { formatMoney, accountTypes } from '@/helpers';
 
 const props = defineProps({ accounts: Array, familyUsers: Array, usdRate: Number });
 
 const showModal = ref(false);
+const showTransferModal = ref(false);
 const editing = ref(null);
+
+const transferForm = useForm({ from_account_id: '', to_account_id: '', amount: 0, commission: 0, notes: '' });
+
+const fromAccount = computed(() => props.accounts.find(a => a.id == transferForm.from_account_id));
+const toAccount   = computed(() => props.accounts.find(a => a.id == transferForm.to_account_id));
+
+const convertedAmount = computed(() => {
+    if (!fromAccount.value || !toAccount.value) return null;
+    const a = parseFloat(transferForm.amount) || 0;
+    if (fromAccount.value.currency === toAccount.value.currency) return null;
+    if (fromAccount.value.currency === 'USD') return formatMoney(a * props.usdRate);
+    return formatMoney(a / props.usdRate, 'USD');
+});
+
+const submitTransfer = () => {
+    transferForm.post(route('accounts.transfer'), {
+        onSuccess: () => { showTransferModal.value = false; transferForm.reset(); },
+    });
+};
 
 const form = useForm({
     user_id: '', name: '', type: 'banco', institution: '', currency: 'ARS', balance: 0, color: '#6366f1',
@@ -53,10 +73,16 @@ const typeIcons = {
                     <h1 class="text-2xl font-bold text-gray-800">Cuentas</h1>
                     <p class="text-sm text-gray-500 mt-1">Administra tus cuentas bancarias y billeteras</p>
                 </div>
-                <button @click="openCreate" class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-xl shadow-lg shadow-indigo-200/50 hover:shadow-xl hover:shadow-indigo-300/50 transition-all duration-200">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                    Nueva Cuenta
-                </button>
+                <div class="flex items-center gap-2">
+                    <button @click="showTransferModal = true" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-indigo-600 text-sm font-medium rounded-xl border border-indigo-200 shadow-sm hover:bg-indigo-50 transition-all duration-200">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                        Transferir
+                    </button>
+                    <button @click="openCreate" class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-xl shadow-lg shadow-indigo-200/50 hover:shadow-xl hover:shadow-indigo-300/50 transition-all duration-200">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                        Nueva Cuenta
+                    </button>
+                </div>
             </div>
 
             <div v-if="!accounts.length" class="bg-white rounded-2xl p-12 text-center shadow-sm border border-gray-100">
@@ -102,6 +128,64 @@ const typeIcons = {
                 </div>
             </div>
         </div>
+
+        <!-- Transfer Modal -->
+        <Modal :show="showTransferModal" @close="showTransferModal = false" title="Transferir entre cuentas">
+            <form @submit.prevent="submitTransfer" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Desde <span class="text-red-500">*</span></label>
+                        <select v-model="transferForm.from_account_id" required class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
+                            <option value="" disabled>Cuenta origen</option>
+                            <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }} ({{ formatMoney(a.balance, a.currency) }})</option>
+                        </select>
+                        <p v-if="transferForm.errors.from_account_id" class="text-rose-500 text-xs mt-1">{{ transferForm.errors.from_account_id }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Hacia <span class="text-red-500">*</span></label>
+                        <select v-model="transferForm.to_account_id" required class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
+                            <option value="" disabled>Cuenta destino</option>
+                            <option v-for="a in accounts" :key="a.id" :value="a.id" :disabled="a.id == transferForm.from_account_id">{{ a.name }} ({{ formatMoney(a.balance, a.currency) }})</option>
+                        </select>
+                        <p v-if="transferForm.errors.to_account_id" class="text-rose-500 text-xs mt-1">{{ transferForm.errors.to_account_id }}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Monto <span class="text-gray-400 font-normal">({{ fromAccount?.currency ?? '...' }})</span>
+                        </label>
+                        <input v-model="transferForm.amount" type="number" step="0.01" min="0.01" required class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" />
+                        <p v-if="transferForm.errors.amount" class="text-rose-500 text-xs mt-1">{{ transferForm.errors.amount }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Comisión <span class="text-gray-400 font-normal">({{ fromAccount?.currency ?? '...' }})</span>
+                        </label>
+                        <input v-model="transferForm.commission" type="number" step="0.01" min="0" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                </div>
+
+                <!-- Conversion preview -->
+                <div v-if="convertedAmount" class="flex items-center gap-2 bg-indigo-50 rounded-xl px-4 py-3 text-sm text-indigo-700">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    El destino recibirá aproximadamente <strong class="ml-1">{{ convertedAmount }}</strong> (cotización {{ formatMoney(usdRate) }}/USD)
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                    <input v-model="transferForm.notes" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Ej: Ahorro mensual" />
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4">
+                    <button type="button" @click="showTransferModal = false" class="px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Cancelar</button>
+                    <button type="submit" :disabled="transferForm.processing" class="px-6 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-200/50 disabled:opacity-50">
+                        Transferir
+                    </button>
+                </div>
+            </form>
+        </Modal>
 
         <Modal :show="showModal" @close="showModal = false" :title="editing ? 'Editar Cuenta' : 'Nueva Cuenta'">
             <form @submit.prevent="submit" class="space-y-4">
