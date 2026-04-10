@@ -6,13 +6,15 @@ import { ref, onMounted } from 'vue';
 const props = defineProps({ settings: Object });
 const backups = ref([]);
 
-const settingsData = ref({});
+// Flatten settings groups immediately so inputs are bound from first render
+const settingsData = ref(
+    Object.values(props.settings).flat().reduce((acc, s) => {
+        acc[s.key] = s.value ?? '';
+        return acc;
+    }, {})
+);
 
 onMounted(() => {
-    // Flatten settings groups
-    Object.values(props.settings).forEach(group => {
-        group.forEach(s => { settingsData.value[s.key] = s.value; });
-    });
     loadBackups();
 });
 
