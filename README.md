@@ -1,59 +1,243 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Bynad Finance
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+App web de finanzas familiares para gestionar gastos, ingresos, patrimonio y presupuestos compartidos entre miembros de una familia.
 
-## About Laravel
+## Stack
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **Backend:** Laravel 12 (PHP 8.2+)
+- **Frontend:** Vue 3 + Inertia.js + Tailwind CSS 3
+- **Charts:** Chart.js + vue-chartjs
+- **Base de datos:** MySQL 8
+- **Build:** Vite 5
+- **Web server:** Nginx
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Funcionalidades
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- Dashboard con analytics y filtros por miembro/mes
+- Cuentas bancarias y billeteras virtuales
+- Tarjetas de crédito con diseño visual y cuotas
+- Gastos fijos mensuales con toggle de pago
+- Gastos variables con presupuestos por categoría
+- Ingresos por fuente con gráficos de evolución
+- Patrimonio (activos en ARS y USD con conversión automática)
+- Lista del supermercado con catálogo de productos
+- Landing page pública + blog
+- Panel de configuración (solo admin)
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## Instalación local
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Requisitos
 
-## Laravel Sponsors
+- PHP 8.2+
+- Composer
+- Node.js 18+
+- MySQL 8
+- Apache o Nginx
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### Pasos
 
-### Premium Partners
+```bash
+# 1. Clonar el repo
+git clone git@github.com:TomasRomano25/bynad.git
+cd bynad
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+# 2. Instalar dependencias PHP
+composer install
 
-## Contributing
+# 3. Instalar dependencias JS
+npm install
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+# 4. Configurar entorno
+cp .env.example .env
+php artisan key:generate
+```
 
-## Code of Conduct
+Editar `.env` con los datos de la base de datos:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```env
+DB_DATABASE=finanzasfamiliares
+DB_USERNAME=tu_usuario
+DB_PASSWORD=tu_password
+```
 
-## Security Vulnerabilities
+```bash
+# 5. Crear base de datos y migrar
+php artisan migrate
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+# 6. Build del frontend
+npm run build
 
-## License
+# 7. Link de storage
+php artisan storage:link
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Servidor local (Apache)
+
+El proyecto corre en `finanzas.test` con un VirtualHost de Apache. La config está en `finanzas.test.conf`.
+
+```bash
+# Activar el sitio
+sudo cp finanzas.test.conf /etc/apache2/sites-available/
+sudo a2ensite finanzas.test.conf
+sudo a2enmod rewrite
+sudo systemctl reload apache2
+```
+
+Agregar al `/etc/hosts`:
+```
+127.0.0.1 finanzas.test
+```
+
+---
+
+## Producción
+
+### Servidor
+
+- **Dominio:** https://bynad.com
+- **IP:** 72.60.155.87
+- **Directorio:** `/var/www/bynad`
+- **Web server:** Nginx
+- **PHP:** 8.3 (FPM)
+- **DB:** MySQL 8 — base `finanzasfamiliares`, usuario `improntus`
+
+### Deploy inicial (primera vez)
+
+En el servidor:
+
+```bash
+# Clonar repo
+git clone git@github.com:TomasRomano25/bynad.git /var/www/bynad
+cd /var/www/bynad
+
+# Dependencias
+composer install --no-dev --optimize-autoloader
+npm install && npm run build
+
+# Configurar entorno
+cp .env.example .env
+# Editar .env con los valores de producción
+php artisan key:generate
+php artisan migrate --force
+php artisan config:cache && php artisan route:cache && php artisan view:cache
+php artisan storage:link
+
+# Permisos
+chown -R www-data:www-data /var/www/bynad
+chmod -R 775 /var/www/bynad/storage /var/www/bynad/bootstrap/cache
+```
+
+Config de Nginx en `/etc/nginx/sites-available/bynad`:
+
+```nginx
+server {
+    listen 80;
+    server_name bynad.com www.bynad.com;
+
+    root /var/www/bynad/public;
+    index index.php;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+
+    client_max_body_size 20M;
+}
+```
+
+```bash
+ln -s /etc/nginx/sites-available/bynad /etc/nginx/sites-enabled/bynad
+nginx -t && systemctl reload nginx
+```
+
+### SSL con Certbot
+
+```bash
+apt install certbot python3-certbot-nginx -y
+certbot --nginx -d bynad.com -d www.bynad.com
+```
+
+Certbot renueva el certificado automáticamente.
+
+### Deploy de actualizaciones
+
+Cada vez que hagas cambios:
+
+```bash
+# Local — pushear cambios
+git add .
+git commit -m "descripción del cambio"
+git push
+```
+
+En el servidor:
+
+```bash
+cd /var/www/bynad
+git pull
+composer install --no-dev --optimize-autoloader --no-interaction
+npm install && npm run build
+php artisan migrate --force
+php artisan config:cache && php artisan route:cache && php artisan view:cache
+```
+
+---
+
+## Usuario admin
+
+El admin de la plataforma es un usuario con `is_admin = true`. No es un rol familiar — es el dueño del sistema y el único que puede acceder a Configuración.
+
+```bash
+# Registrarte primero en /register, luego:
+php artisan user:make-admin tu@email.com
+```
+
+Desde Configuración el admin gestiona:
+- Cotización USD (usada para conversión de activos)
+- Configuración SMTP para emails
+- Backups de la base de datos
+
+---
+
+## Familias
+
+- Al registrarse se crea una familia automáticamente
+- Para que otro miembro se una, usa el **código de familia** (ID numérico) durante el registro
+- Todos los datos se filtran por familia
+
+---
+
+## Variables de entorno relevantes
+
+| Variable | Descripción |
+|---|---|
+| `APP_URL` | URL pública de la app |
+| `APP_DEBUG` | `false` en producción |
+| `DB_DATABASE` | Nombre de la base de datos |
+| `DB_USERNAME` / `DB_PASSWORD` | Credenciales MySQL |
+| `MAIL_*` | Config SMTP (configurable desde el panel) |
+
+---
+
+## Comandos útiles
+
+```bash
+php artisan migrate                            # Correr migraciones
+php artisan migrate:rollback                   # Deshacer última migración
+php artisan route:list                         # Ver todas las rutas
+php artisan config:clear                       # Limpiar cache de config
+php artisan user:make-admin email@ejemplo.com  # Hacer admin a un usuario
+npm run dev                                    # Dev server con HMR
+npm run build                                  # Build de producción
+```
