@@ -129,7 +129,7 @@ class AccountController extends Controller
 
         // Transfers out
         AccountTransfer::where('from_account_id', $account->id)->with('toAccount')->get()
-            ->each(function ($t) use (&$movements) {
+            ->each(function ($t) use (&$movements, $account) {
                 $movements->push([
                     'id'          => 'transfer-out-' . $t->id,
                     'date'        => $t->transferred_at ?? $t->created_at->toDateString(),
@@ -148,7 +148,7 @@ class AccountController extends Controller
 
         // Transfers in
         AccountTransfer::where('to_account_id', $account->id)->with('fromAccount')->get()
-            ->each(function ($t) use (&$movements) {
+            ->each(function ($t) use (&$movements, $account) {
                 $movements->push([
                     'id'          => 'transfer-in-' . $t->id,
                     'date'        => $t->transferred_at ?? $t->created_at->toDateString(),
