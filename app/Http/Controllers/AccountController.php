@@ -132,6 +132,10 @@ class AccountController extends Controller
             ->each(function ($t) use (&$movements, $account) {
                 $movements->push([
                     'id'          => 'transfer-out-' . $t->id,
+                    'transfer_id' => $t->id,
+                    'transfer_amount' => (float) $t->amount,
+                    'transfer_commission' => (float) $t->commission,
+                    'transfer_notes' => $t->notes,
                     'date'        => $t->transferred_at ?? $t->created_at->toDateString(),
                     'description' => 'Transferencia a ' . ($t->toAccount?->name ?? '?'),
                     'type'        => 'transfer_out',
@@ -151,6 +155,10 @@ class AccountController extends Controller
             ->each(function ($t) use (&$movements, $account) {
                 $movements->push([
                     'id'          => 'transfer-in-' . $t->id,
+                    'transfer_id' => $t->id,
+                    'transfer_amount' => (float) $t->amount,
+                    'transfer_commission' => (float) $t->commission,
+                    'transfer_notes' => $t->notes,
                     'date'        => $t->transferred_at ?? $t->created_at->toDateString(),
                     'description' => 'Transferencia desde ' . ($t->fromAccount?->name ?? '?'),
                     'type'        => 'transfer_in',
@@ -244,6 +252,89 @@ class AccountController extends Controller
             return redirect()->back()->with('success', 'La cuenta "' . $name . '" fue eliminada.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'No se pudo eliminar la cuenta. Puede tener gastos o ingresos asociados.');
+        }
+    }
+
+    public function updateTransfer(Request $request, AccountTransfer $transfer)
+    {
+        $validated = $request->validate([
+            'amount'     => 'required|numeric|min:0.01',
+            'commission' => 'nullable|numeric|min:0',
+            'notes'      => 'nullable|string|max:255',
+        ]);
+
+        try {
+            DB::transaction(function () use ($validated, $transfer) {
+                $usdRate    = Setting::getUsdRate();
+                $from       = Account::findOrFail($transfer->from_account_id);
+                $to         = Account::findOrFail($transfer->to_account_id);
+
+                // Reverse old transfer
+                $from->balance += ($transfer->amount + $transfer->commission);
+                $from->balance_usd = $from->currency === 'USD' ? round($from->balance, 2) : round($from->balance / $usdRate, 2);
+                $from->save();
+
+                $to->balance -= $transfer->amount_received;
+                $to->balance_usd = $to->currency === 'USD' ? round($to->balance, 2) : round($to->balance / $usdRate, 2);
+                $to->save();
+
+                // Apply new transfer
+                $amount     = (float) $validated['amount'];
+                $commission = (float) ($validated['commission'] ?? 0);
+
+                $from->balance -= ($amount + $commission);
+                $from->balance_usd = $from->currency === 'USD' ? round($from->balance, 2) : round($from->balance / $usdRate, 2);
+                $from->save();
+
+                if ($from->currency === $to->currency) {
+                    $received = $amount;
+                } elseif ($from->currency === 'USD') {
+                    $received = round($amount * $usdRate, 2);
+                } else {
+                    $received = round($amount / $usdRate, 2);
+                }
+
+                $to->balance += $received;
+                $to->balance_usd = $to->currency === 'USD' ? round($to->balance, 2) : round($to->balance / $usdRate, 2);
+                $to->save();
+
+                $transfer->update([
+                    'amount'          => $amount,
+                    'amount_received' => $received,
+                    'commission'      => $commission,
+                    'notes'           => $validated['notes'] ?? null,
+                ]);
+            });
+
+            return redirect()->back()->with('success', 'Transferencia actualizada.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'No se pudo actualizar la transferencia.');
+        }
+    }
+
+    public function destroyTransfer(AccountTransfer $transfer)
+    {
+        try {
+            DB::transaction(function () use ($transfer) {
+                $usdRate = Setting::getUsdRate();
+                $from    = Account::findOrFail($transfer->from_account_id);
+                $to      = Account::findOrFail($transfer->to_account_id);
+
+                // Reverse: restore from, deduct to
+                $from->balance += ($transfer->amount + $transfer->commission);
+                $from->balance_usd = $from->currency === 'USD' ? round($from->balance, 2) : round($from->balance / $usdRate, 2);
+                $from->save();
+
+                $to->balance -= $transfer->amount_received;
+                $to->balance_usd = $to->currency === 'USD' ? round($to->balance, 2) : round($to->balance / $usdRate, 2);
+                $to->save();
+
+                $transfer->delete();
+            });
+
+            return redirect()->back()->with('success', 'Transferencia eliminada.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'No se pudo eliminar la transferencia.');
         }
     }
 

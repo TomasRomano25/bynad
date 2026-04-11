@@ -1,6 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import Modal from '@/Components/UI/Modal.vue';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import { formatMoney } from '@/helpers';
 
@@ -14,12 +15,12 @@ const props = defineProps({
 const typeFilter = ref('all');
 
 const typeConfig = {
-    income:         { label: 'Ingreso',      color: 'bg-emerald-100 text-emerald-700' },
+    income:           { label: 'Ingreso',       color: 'bg-emerald-100 text-emerald-700' },
     variable_expense: { label: 'Gasto Variable', color: 'bg-rose-100 text-rose-700' },
-    fixed_expense:  { label: 'Gasto Fijo',   color: 'bg-amber-100 text-amber-700' },
-    supermarket:    { label: 'Supermercado', color: 'bg-blue-100 text-blue-700' },
-    transfer_in:    { label: 'Transferencia', color: 'bg-indigo-100 text-indigo-700' },
-    transfer_out:   { label: 'Transferencia', color: 'bg-indigo-100 text-indigo-700' },
+    fixed_expense:    { label: 'Gasto Fijo',    color: 'bg-amber-100 text-amber-700' },
+    supermarket:      { label: 'Supermercado',  color: 'bg-blue-100 text-blue-700' },
+    transfer_in:      { label: 'Transferencia', color: 'bg-indigo-100 text-indigo-700' },
+    transfer_out:     { label: 'Transferencia', color: 'bg-indigo-100 text-indigo-700' },
 };
 
 const filtered = computed(() => {
@@ -34,6 +35,30 @@ const filtered = computed(() => {
 const formatDate = (d) => {
     if (!d) return '';
     return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+// Transfer edit
+const showEditTransfer = ref(false);
+const editingTransfer = ref(null);
+const transferForm = useForm({ amount: 0, commission: 0, notes: '' });
+
+const openEditTransfer = (m) => {
+    editingTransfer.value = m;
+    transferForm.amount = m.transfer_amount;
+    transferForm.commission = m.transfer_commission ?? 0;
+    transferForm.notes = m.transfer_notes ?? '';
+    showEditTransfer.value = true;
+};
+
+const submitEditTransfer = () => {
+    transferForm.put(route('accounts.transfers.update', editingTransfer.value.transfer_id), {
+        onSuccess: () => { showEditTransfer.value = false; },
+    });
+};
+
+const destroyTransfer = (m) => {
+    if (!confirm('¿Eliminar esta transferencia? Se revertirán los saldos.')) return;
+    router.delete(route('accounts.transfers.destroy', m.transfer_id));
 };
 </script>
 
@@ -110,17 +135,29 @@ const formatDate = (d) => {
                                 <p class="text-xs text-gray-400">{{ formatDate(m.date) }}</p>
                                 <p v-if="m.person" class="text-xs text-gray-400">· {{ m.person }}</p>
                                 <p v-if="m.category" class="text-xs text-gray-400">· {{ m.category }}</p>
+                                <p v-if="m.transfer_notes" class="text-xs text-gray-400">· {{ m.transfer_notes }}</p>
                             </div>
                         </div>
 
-                        <!-- Amount -->
-                        <div class="text-right flex-shrink-0">
-                            <p :class="m.direction === '+' ? 'text-emerald-600' : 'text-rose-600'" class="text-sm font-bold">
-                                {{ m.direction === '+' ? '+' : '-' }}{{ formatMoney(m.amount, m.currency) }}
-                            </p>
-                            <p v-if="m.currency !== 'ARS'" class="text-xs text-gray-400">
-                                ≈ {{ formatMoney(m.amount_ars) }}
-                            </p>
+                        <!-- Amount + actions -->
+                        <div class="flex items-center gap-3 flex-shrink-0">
+                            <div class="text-right">
+                                <p :class="m.direction === '+' ? 'text-emerald-600' : 'text-rose-600'" class="text-sm font-bold">
+                                    {{ m.direction === '+' ? '+' : '-' }}{{ formatMoney(m.amount, m.currency) }}
+                                </p>
+                                <p v-if="m.currency !== 'ARS'" class="text-xs text-gray-400">
+                                    ≈ {{ formatMoney(m.amount_ars) }}
+                                </p>
+                            </div>
+                            <!-- Transfer actions (only on the "out" side to avoid duplicates) -->
+                            <div v-if="m.type === 'transfer_out'" class="flex gap-1">
+                                <button @click="openEditTransfer(m)" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                </button>
+                                <button @click="destroyTransfer(m)" class="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -129,5 +166,32 @@ const formatDate = (d) => {
                 </div>
             </div>
         </div>
+
+        <!-- Edit transfer modal -->
+        <Modal :show="showEditTransfer" @close="showEditTransfer = false" title="Editar Transferencia">
+            <form @submit.prevent="submitEditTransfer" class="space-y-4">
+                <div v-if="editingTransfer" class="bg-gray-50 rounded-xl p-3 text-sm text-gray-600">
+                    {{ editingTransfer.description }}
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Monto</label>
+                        <input v-model="transferForm.amount" type="number" step="0.01" min="0.01" required class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Comision</label>
+                        <input v-model="transferForm.commission" type="number" step="0.01" min="0" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                    <input v-model="transferForm.notes" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" @click="showEditTransfer = false" class="px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200">Cancelar</button>
+                    <button type="submit" :disabled="transferForm.processing" class="px-6 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg disabled:opacity-50">Guardar</button>
+                </div>
+            </form>
+        </Modal>
     </AuthenticatedLayout>
 </template>
