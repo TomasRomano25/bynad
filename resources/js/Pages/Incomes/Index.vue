@@ -102,7 +102,7 @@ onMounted(() => {
                                     <p class="text-sm font-bold text-emerald-600">{{ formatMoney(i.amount, i.currency ?? 'ARS') }}</p>
                                     <p class="text-xs text-gray-400">
                                         <template v-if="(i.currency ?? 'ARS') === 'USD'">≈ {{ formatMoney(i.amount * usdRate) }}</template>
-                                        <template v-else>≈ {{ formatMoney(i.amount_usd, 'USD') }}</template>
+                                        <template v-else>≈ {{ formatMoney(i.amount / usdRate, 'USD') }}</template>
                                     </p>
                                 </td>
                                 <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">{{ i.job || '-' }}</span></td>

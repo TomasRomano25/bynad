@@ -102,7 +102,7 @@ const totalPending = () => totalExpenses() - totalPaid();
                                     <p class="text-sm font-bold text-gray-800">{{ formatMoney(expense.amount, expense.currency ?? 'ARS') }}</p>
                                     <p class="text-xs text-gray-400">
                                         <template v-if="(expense.currency ?? 'ARS') === 'USD'">≈ {{ formatMoney(expense.amount * usdRate) }}</template>
-                                        <template v-else>≈ {{ formatMoney(expense.amount_usd, 'USD') }}</template>
+                                        <template v-else>≈ {{ formatMoney(expense.amount / usdRate, 'USD') }}</template>
                                     </p>
                                 </td>
                                 <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">{{ expense.account?.name || '-' }}</span></td>

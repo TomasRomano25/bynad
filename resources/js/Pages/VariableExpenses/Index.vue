@@ -140,7 +140,7 @@ const applyFilter = (key, value) => {
                                     <p class="text-sm font-bold text-gray-800">{{ formatMoney(e.amount, e.currency ?? 'ARS') }}</p>
                                     <p class="text-xs text-gray-400">
                                         <template v-if="(e.currency ?? 'ARS') === 'USD'">≈ {{ formatMoney(e.amount * usdRate) }}</template>
-                                        <template v-else>≈ {{ formatMoney(e.amount_usd, 'USD') }}</template>
+                                        <template v-else>≈ {{ formatMoney(e.amount / usdRate, 'USD') }}</template>
                                     </p>
                                 </td>
                                 <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">{{ e.account?.name || '-' }}</span></td>
