@@ -130,23 +130,24 @@ class AccountController extends Controller
         // Transfers out
         AccountTransfer::where('from_account_id', $account->id)->with('toAccount')->get()
             ->each(function ($t) use (&$movements, $account) {
+                $total = (float) $t->amount + (float) $t->commission;
                 $movements->push([
-                    'id'          => 'transfer-out-' . $t->id,
-                    'transfer_id' => $t->id,
-                    'transfer_amount' => (float) $t->amount,
+                    'id'                  => 'transfer-out-' . $t->id,
+                    'transfer_id'         => $t->id,
+                    'transfer_amount'     => (float) $t->amount,
                     'transfer_commission' => (float) $t->commission,
-                    'transfer_notes' => $t->notes,
-                    'date'        => $t->transferred_at ?? $t->created_at->toDateString(),
-                    'description' => 'Transferencia a ' . ($t->toAccount?->name ?? '?'),
-                    'type'        => 'transfer_out',
-                    'label'       => 'Transferencia',
-                    'amount'      => (float) $t->amount,
-                    'amount_ars'  => (float) $t->amount,
-                    'currency'    => $account->currency,
-                    'direction'   => '-',
-                    'person'      => null,
-                    'category'    => null,
-                    'necessary'   => null,
+                    'transfer_notes'      => $t->notes,
+                    'date'                => $t->transferred_at ?? $t->created_at->toDateString(),
+                    'description'         => 'Transferencia a ' . ($t->toAccount?->name ?? '?'),
+                    'type'                => 'transfer_out',
+                    'label'               => 'Transferencia',
+                    'amount'              => $total,
+                    'amount_ars'          => $total,
+                    'currency'            => $account->currency,
+                    'direction'           => '-',
+                    'person'              => null,
+                    'category'            => null,
+                    'necessary'           => null,
                 ]);
             });
 

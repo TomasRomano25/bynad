@@ -12,9 +12,21 @@ const showTransferModal = ref(false);
 const editing = ref(null);
 
 const transferForm = useForm({ from_account_id: '', to_account_id: '', amount: 0, commission: 0, notes: '' });
+const commissionMode = ref('flat'); // 'flat' | 'percent'
+const commissionInput = ref(0);
 
 const fromAccount = computed(() => props.accounts.find(a => a.id == transferForm.from_account_id));
 const toAccount   = computed(() => props.accounts.find(a => a.id == transferForm.to_account_id));
+
+const commissionFlat = computed(() => {
+    const amt = parseFloat(transferForm.amount) || 0;
+    const c   = parseFloat(commissionInput.value) || 0;
+    return commissionMode.value === 'percent' ? round(amt * c / 100, 2) : c;
+});
+
+const totalDebit = computed(() => (parseFloat(transferForm.amount) || 0) + commissionFlat.value);
+
+function round(v, d) { return Math.round(v * 10 ** d) / 10 ** d; }
 
 const convertedAmount = computed(() => {
     if (!fromAccount.value || !toAccount.value) return null;
@@ -25,8 +37,9 @@ const convertedAmount = computed(() => {
 });
 
 const submitTransfer = () => {
+    transferForm.commission = commissionFlat.value;
     transferForm.post(route('accounts.transfer'), {
-        onSuccess: () => { showTransferModal.value = false; transferForm.reset(); },
+        onSuccess: () => { showTransferModal.value = false; transferForm.reset(); commissionInput.value = 0; commissionMode.value = 'flat'; },
     });
 };
 
@@ -166,17 +179,36 @@ const typeIcons = {
                         <p v-if="transferForm.errors.amount" class="text-rose-500 text-xs mt-1">{{ transferForm.errors.amount }}</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Comisión <span class="text-gray-400 font-normal">({{ fromAccount?.currency ?? '...' }})</span>
-                        </label>
-                        <input v-model="transferForm.commission" type="number" step="0.01" min="0" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" />
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Comisión</label>
+                        <div class="flex gap-2">
+                            <div class="flex rounded-xl overflow-hidden border border-gray-300 shrink-0">
+                                <button type="button" @click="commissionMode = 'flat'" :class="commissionMode === 'flat' ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" class="px-3 py-2.5 text-xs font-semibold transition-colors">{{ fromAccount?.currency ?? '$' }}</button>
+                                <button type="button" @click="commissionMode = 'percent'" :class="commissionMode === 'percent' ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" class="px-3 py-2.5 text-xs font-semibold transition-colors border-l border-gray-300">%</button>
+                            </div>
+                            <input v-model="commissionInput" type="number" step="0.01" min="0" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" :placeholder="commissionMode === 'percent' ? 'Ej: 1.5' : 'Ej: 500'" />
+                        </div>
+                        <p v-if="commissionMode === 'percent' && commissionFlat > 0" class="text-xs text-gray-400 mt-1">= {{ formatMoney(commissionFlat, fromAccount?.currency ?? 'ARS') }}</p>
                     </div>
                 </div>
 
-                <!-- Conversion preview -->
-                <div v-if="convertedAmount" class="flex items-center gap-2 bg-indigo-50 rounded-xl px-4 py-3 text-sm text-indigo-700">
-                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    El destino recibirá aproximadamente <strong class="ml-1">{{ convertedAmount }}</strong> (cotización {{ formatMoney(usdRate) }}/USD)
+                <!-- Total preview -->
+                <div class="bg-gray-50 rounded-xl px-4 py-3 space-y-1.5 text-sm">
+                    <div class="flex justify-between text-gray-500">
+                        <span>Monto transferido</span>
+                        <span>{{ formatMoney(transferForm.amount || 0, fromAccount?.currency ?? 'ARS') }}</span>
+                    </div>
+                    <div v-if="commissionFlat > 0" class="flex justify-between text-gray-500">
+                        <span>Comisión</span>
+                        <span class="text-rose-500">- {{ formatMoney(commissionFlat, fromAccount?.currency ?? 'ARS') }}</span>
+                    </div>
+                    <div class="flex justify-between font-semibold text-gray-800 border-t border-gray-200 pt-1.5">
+                        <span>Total a debitar</span>
+                        <span>{{ formatMoney(totalDebit, fromAccount?.currency ?? 'ARS') }}</span>
+                    </div>
+                    <div v-if="convertedAmount" class="flex justify-between text-indigo-600 text-xs pt-0.5">
+                        <span>El destino recibe</span>
+                        <span>≈ {{ convertedAmount }}</span>
+                    </div>
                 </div>
 
                 <div>
