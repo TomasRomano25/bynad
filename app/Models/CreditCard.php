@@ -5,11 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\Account;
+use App\Models\CreditCardPayment;
 
 class CreditCard extends Model
 {
     protected $fillable = [
-        'user_id', 'name', 'brand', 'last_four', 'bank', 'limit_amount', 'limit_amount_usd',
+        'user_id', 'account_id', 'name', 'brand', 'last_four', 'bank', 'limit_amount', 'limit_amount_usd',
         'closing_day', 'due_day', 'color',
     ];
 
@@ -23,9 +25,19 @@ class CreditCard extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(Account::class);
+    }
+
     public function expenses(): HasMany
     {
         return $this->hasMany(CreditCardExpense::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(CreditCardPayment::class);
     }
 
     public function getUsedAmountAttribute(): float

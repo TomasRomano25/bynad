@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Account;
 use App\Models\CreditCard;
 use App\Models\CreditCardExpense;
+use App\Models\CreditCardPayment;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class CreditCardController extends Controller
@@ -17,8 +20,11 @@ class CreditCardController extends Controller
         $familyUserIds = $family ? $family->users()->pluck('users.id')->toArray() : [$user->id];
         $usdRate = Setting::getUsdRate();
 
+        $month = request()->get('month', now()->month);
+        $year  = request()->get('year', now()->year);
+
         $cards = CreditCard::whereIn('user_id', $familyUserIds)
-            ->with(['user', 'expenses'])
+            ->with(['user', 'expenses', 'account', 'payments' => fn($q) => $q->where('month', $month)->where('year', $year)])
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($card) use ($usdRate) {
@@ -28,16 +34,21 @@ class CreditCardController extends Controller
                         ? $e->installment_amount * $usdRate
                         : $e->installment_amount;
                 });
-                $card->available = $card->limit_amount - $card->used_amount;
+                $card->available  = $card->limit_amount - $card->used_amount;
+                $card->is_paid    = $card->payments->isNotEmpty();
+                $card->payment    = $card->payments->first();
                 return $card;
             });
 
         $familyUsers = $family ? $family->users()->get(['users.id', 'users.name']) : collect([$user]);
+        $accounts    = Account::whereIn('user_id', $familyUserIds)->get();
 
         return Inertia::render('CreditCards/Index', [
-            'cards' => $cards,
+            'cards'       => $cards,
             'familyUsers' => $familyUsers,
-            'usdRate' => Setting::getUsdRate(),
+            'accounts'    => $accounts,
+            'usdRate'     => Setting::getUsdRate(),
+            'filters'     => ['month' => (int) $month, 'year' => (int) $year],
         ]);
     }
 
@@ -92,6 +103,7 @@ class CreditCardController extends Controller
     {
         $validated = $request->validate([
             'user_id'      => 'required|exists:users,id',
+            'account_id'   => 'nullable|exists:accounts,id',
             'name'         => 'required|string|max:255',
             'brand'        => 'required|in:visa,mastercard,amex,naranja,cabal,otro',
             'last_four'    => 'nullable|string|max:4',
@@ -122,6 +134,7 @@ class CreditCardController extends Controller
     {
         $validated = $request->validate([
             'user_id'      => 'required|exists:users,id',
+            'account_id'   => 'nullable|exists:accounts,id',
             'name'         => 'required|string|max:255',
             'brand'        => 'required|in:visa,mastercard,amex,naranja,cabal,otro',
             'last_four'    => 'nullable|string|max:4',
@@ -224,6 +237,74 @@ class CreditCardController extends Controller
             return redirect()->back()->with('success', 'El gasto "' . $validated['description'] . '" fue actualizado.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'No se pudo actualizar el gasto.');
+        }
+    }
+
+    public function payStatement(Request $request, CreditCard $creditCard)
+    {
+        $validated = $request->validate([
+            'month'      => 'required|integer|min:1|max:12',
+            'year'       => 'required|integer|min:2000',
+            'account_id' => 'required|exists:accounts,id',
+        ]);
+
+        try {
+            DB::transaction(function () use ($validated, $creditCard) {
+                $usdRate = Setting::getUsdRate();
+
+                // Check if already paid this month
+                $existing = CreditCardPayment::where([
+                    'credit_card_id' => $creditCard->id,
+                    'month'          => $validated['month'],
+                    'year'           => $validated['year'],
+                ])->first();
+
+                if ($existing) {
+                    // Undo payment: restore account balance
+                    $account = Account::findOrFail($existing->account_id);
+                    $restore = $account->currency === 'USD'
+                        ? round($existing->amount / $usdRate, 2)
+                        : $existing->amount;
+                    $account->balance += $restore;
+                    $account->balance_usd = $account->currency === 'USD'
+                        ? round($account->balance, 2)
+                        : round($account->balance / $usdRate, 2);
+                    $account->save();
+                    $existing->delete();
+                    return;
+                }
+
+                // Calculate total for the month (sum of installment amounts in ARS)
+                $total = $creditCard->expenses->sum(function ($e) use ($usdRate) {
+                    return ($e->currency ?? 'ARS') === 'USD'
+                        ? $e->installment_amount * $usdRate
+                        : $e->installment_amount;
+                });
+
+                $account = Account::findOrFail($validated['account_id']);
+                $deduct  = $account->currency === 'USD'
+                    ? round($total / $usdRate, 2)
+                    : $total;
+
+                $account->balance -= $deduct;
+                $account->balance_usd = $account->currency === 'USD'
+                    ? round($account->balance, 2)
+                    : round($account->balance / $usdRate, 2);
+                $account->save();
+
+                CreditCardPayment::create([
+                    'credit_card_id' => $creditCard->id,
+                    'account_id'     => $validated['account_id'],
+                    'month'          => $validated['month'],
+                    'year'           => $validated['year'],
+                    'amount'         => round($total, 2),
+                    'currency'       => 'ARS',
+                ]);
+            });
+
+            return redirect()->back()->with('success', 'Resumen pagado correctamente.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'No se pudo registrar el pago del resumen.');
         }
     }
 

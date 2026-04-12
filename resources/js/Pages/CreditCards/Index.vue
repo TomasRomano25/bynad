@@ -1,25 +1,29 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/UI/Modal.vue';
+import MonthSelector from '@/Components/UI/MonthSelector.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { formatMoney, cardBrands } from '@/helpers';
 
-const props = defineProps({ cards: Array, familyUsers: Array, usdRate: Number });
+const props = defineProps({ cards: Array, familyUsers: Array, accounts: Array, usdRate: Number, filters: Object });
 
 const showCardModal = ref(false);
 const showExpenseModal = ref(false);
+const showPayModal = ref(false);
 const editingCard = ref(null);
 const selectedCard = ref(null);
 const editingExpense = ref(null);
+const payingCard = ref(null);
 
-const cardForm = useForm({ user_id: '', name: '', brand: 'visa', last_four: '', bank: '', limit_amount: 0, closing_day: null, due_day: null, color: '#8b5cf6' });
+const cardForm = useForm({ user_id: '', account_id: null, name: '', brand: 'visa', last_four: '', bank: '', limit_amount: 0, closing_day: null, due_day: null, color: '#8b5cf6' });
 const expenseForm = useForm({ description: '', amount: 0, currency: 'ARS', total_installments: 1, current_installment: 1, purchase_date: new Date().toISOString().split('T')[0], category: '' });
+const payForm = useForm({ account_id: null, month: props.filters.month, year: props.filters.year });
 
-const openCreateCard = () => { editingCard.value = null; cardForm.reset(); cardForm.user_id = props.familyUsers?.[0]?.id ?? ''; showCardModal.value = true; };
+const openCreateCard = () => { editingCard.value = null; cardForm.reset(); cardForm.user_id = props.familyUsers?.[0]?.id ?? ''; cardForm.brand = 'visa'; cardForm.color = '#8b5cf6'; showCardModal.value = true; };
 const openEditCard = (card) => {
     editingCard.value = card;
-    Object.assign(cardForm, { user_id: card.user_id, name: card.name, brand: card.brand, last_four: card.last_four, bank: card.bank, limit_amount: card.limit_amount, closing_day: card.closing_day, due_day: card.due_day, color: card.color });
+    Object.assign(cardForm, { user_id: card.user_id, account_id: card.account_id, name: card.name, brand: card.brand, last_four: card.last_four, bank: card.bank, limit_amount: card.limit_amount, closing_day: card.closing_day, due_day: card.due_day, color: card.color });
     showCardModal.value = true;
 };
 
@@ -33,7 +37,7 @@ const submitCard = () => {
 
 const destroyCard = (card) => { if (confirm('Eliminar esta tarjeta?')) useForm({}).delete(route('credit-cards.destroy', card.id)); };
 
-const openAddExpense = (card) => { selectedCard.value = card; editingExpense.value = null; expenseForm.reset(); expenseForm.purchase_date = new Date().toISOString().split('T')[0]; showExpenseModal.value = true; };
+const openAddExpense = (card) => { selectedCard.value = card; editingExpense.value = null; expenseForm.reset(); expenseForm.purchase_date = new Date().toISOString().split('T')[0]; expenseForm.currency = 'ARS'; expenseForm.total_installments = 1; expenseForm.current_installment = 1; showExpenseModal.value = true; };
 const openEditExpense = (card, expense) => {
     selectedCard.value = card; editingExpense.value = expense;
     Object.assign(expenseForm, { description: expense.description, amount: expense.amount, currency: expense.currency ?? 'ARS', total_installments: expense.total_installments, current_installment: expense.current_installment, purchase_date: expense.purchase_date?.split('T')[0], category: expense.category });
@@ -50,22 +54,48 @@ const submitExpense = () => {
 
 const destroyExpense = (expense) => { if (confirm('Eliminar gasto?')) useForm({}).delete(route('credit-cards.expenses.destroy', expense.id)); };
 
+const openPayModal = (card) => {
+    payingCard.value = card;
+    payForm.account_id = card.account_id ?? (props.accounts?.[0]?.id ?? null);
+    payForm.month = props.filters.month;
+    payForm.year = props.filters.year;
+    showPayModal.value = true;
+};
+
+const submitPay = () => {
+    payForm.post(route('credit-cards.pay-statement', payingCard.value.id), {
+        onSuccess: () => { showPayModal.value = false; }
+    });
+};
+
+const monthTotal = computed(() => {
+    if (!payingCard.value) return 0;
+    return payingCard.value.expenses?.reduce((acc, e) => {
+        const amt = (e.currency ?? 'ARS') === 'USD' ? e.installment_amount * props.usdRate : e.installment_amount;
+        return acc + amt;
+    }, 0) ?? 0;
+});
+
 const brandLogos = { visa: '#1a1f71', mastercard: '#eb001b', amex: '#006fcf', naranja: '#ff6600', cabal: '#00529b', otro: '#6b7280' };
+const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 </script>
 
 <template>
     <Head title="Tarjetas de Credito" />
     <AuthenticatedLayout>
         <div class="space-y-6">
-            <div class="flex items-center justify-between">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Tarjetas de Credito</h1>
                     <p class="text-sm text-gray-500 mt-1">Gestiona tus tarjetas y sus consumos</p>
                 </div>
-                <button @click="openCreateCard" class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-xl shadow-lg shadow-indigo-200/50 hover:shadow-xl transition-all">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                    Nueva Tarjeta
-                </button>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <MonthSelector :month="filters.month" :year="filters.year" route-name="credit-cards.index" />
+                    <button @click="openCreateCard" class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-xl shadow-lg shadow-indigo-200/50 hover:shadow-xl transition-all">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                        Nueva Tarjeta
+                    </button>
+                </div>
             </div>
 
             <div v-if="!cards.length" class="bg-white rounded-2xl p-12 text-center shadow-sm border border-gray-100">
@@ -126,13 +156,25 @@ const brandLogos = { visa: '#1a1f71', mastercard: '#eb001b', amex: '#006fcf', na
                             <div class="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all" :style="{ width: Math.min((card.used_amount / card.limit_amount * 100), 100) + '%' }"></div>
                         </div>
 
+                        <!-- Pay statement button -->
                         <div class="mt-4 flex items-center justify-between">
-                            <div class="flex items-center gap-3">
-                                <h4 class="text-sm font-semibold text-gray-700">Gastos</h4>
-                                <Link :href="route('credit-cards.show', card.id)" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium underline underline-offset-2">Ver detalle →</Link>
+                            <div v-if="card.is_paid" class="flex items-center gap-2">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-xl border border-emerald-200">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                    Resumen pagado
+                                </span>
+                                <button @click="openPayModal(card)" class="text-xs text-gray-400 hover:text-rose-500 underline underline-offset-2">Deshacer</button>
                             </div>
-                            <button @click="openAddExpense(card)" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">+ Agregar gasto</button>
+                            <button v-else @click="openPayModal(card)" class="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-cyan-600 text-white text-xs font-semibold rounded-xl shadow-sm hover:shadow-md transition-all">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                                Pagar resumen
+                            </button>
+                            <div class="flex items-center gap-3">
+                                <Link :href="route('credit-cards.show', card.id)" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium underline underline-offset-2">Ver detalle →</Link>
+                                <button @click="openAddExpense(card)" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">+ Agregar gasto</button>
+                            </div>
                         </div>
+
                         <div v-if="card.expenses?.length" class="mt-3 space-y-2">
                             <div v-for="expense in card.expenses" :key="expense.id" class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                                 <div>
@@ -155,13 +197,22 @@ const brandLogos = { visa: '#1a1f71', mastercard: '#eb001b', amex: '#006fcf', na
         <!-- Card Modal -->
         <Modal :show="showCardModal" @close="showCardModal = false" :title="editingCard ? 'Editar Tarjeta' : 'Nueva Tarjeta'">
             <form @submit.prevent="submitCard" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Titular <span class="text-red-500">*</span></label>
-                    <select v-model="cardForm.user_id" required class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
-                        <option value="" disabled>Selecciona un miembro</option>
-                        <option v-for="u in familyUsers" :key="u.id" :value="u.id">{{ u.name }}</option>
-                    </select>
-                    <p v-if="cardForm.errors.user_id" class="text-red-500 text-xs mt-1">{{ cardForm.errors.user_id }}</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Titular <span class="text-red-500">*</span></label>
+                        <select v-model="cardForm.user_id" required class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
+                            <option value="" disabled>Selecciona un miembro</option>
+                            <option v-for="u in familyUsers" :key="u.id" :value="u.id">{{ u.name }}</option>
+                        </select>
+                        <p v-if="cardForm.errors.user_id" class="text-red-500 text-xs mt-1">{{ cardForm.errors.user_id }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cuenta de debito</label>
+                        <select v-model="cardForm.account_id" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
+                            <option :value="null">Sin cuenta asociada</option>
+                            <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Nombre</label><input v-model="cardForm.name" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Mi Visa" /></div>
@@ -190,7 +241,13 @@ const brandLogos = { visa: '#1a1f71', mastercard: '#eb001b', amex: '#006fcf', na
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Descripcion</label><input v-model="expenseForm.description" type="text" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
                 <div class="grid grid-cols-3 gap-4">
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Monto total</label><input v-model="expenseForm.amount" type="number" step="0.01" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
-                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Moneda</label><select v-model="expenseForm.currency" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Moneda</label>
+                        <div class="flex rounded-xl overflow-hidden border border-gray-300">
+                            <button type="button" @click="expenseForm.currency = 'ARS'" :class="expenseForm.currency === 'ARS' ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" class="flex-1 py-2.5 text-sm font-medium transition-colors">ARS</button>
+                            <button type="button" @click="expenseForm.currency = 'USD'" :class="expenseForm.currency === 'USD' ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" class="flex-1 py-2.5 text-sm font-medium transition-colors border-l border-gray-300">USD</button>
+                        </div>
+                    </div>
                     <div><label class="block text-sm font-medium text-gray-700 mb-1">Fecha compra</label><input v-model="expenseForm.purchase_date" type="date" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" /></div>
                 </div>
                 <div class="grid grid-cols-3 gap-4">
@@ -201,6 +258,37 @@ const brandLogos = { visa: '#1a1f71', mastercard: '#eb001b', amex: '#006fcf', na
                 <div class="flex justify-end gap-3 pt-4">
                     <button type="button" @click="showExpenseModal = false" class="px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200">Cancelar</button>
                     <button type="submit" :disabled="expenseForm.processing" class="px-6 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg disabled:opacity-50">{{ editingExpense ? 'Guardar' : 'Agregar' }}</button>
+                </div>
+            </form>
+        </Modal>
+
+        <!-- Pay Statement Modal -->
+        <Modal :show="showPayModal" @close="showPayModal = false" :title="payingCard?.is_paid ? 'Deshacer pago de resumen' : 'Pagar resumen'">
+            <form @submit.prevent="submitPay" class="space-y-4" v-if="payingCard">
+                <div class="bg-gray-50 rounded-xl p-4 space-y-1">
+                    <p class="text-sm text-gray-500">Tarjeta</p>
+                    <p class="font-semibold text-gray-800">{{ payingCard.name }}</p>
+                    <p class="text-sm text-gray-500 mt-2">Resumen</p>
+                    <p class="font-bold text-xl text-gray-800">{{ formatMoney(monthTotal) }}</p>
+                    <p class="text-xs text-gray-400">{{ months[filters.month - 1] }} {{ filters.year }}</p>
+                </div>
+
+                <div v-if="!payingCard.is_paid">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Debitar de la cuenta</label>
+                    <select v-model="payForm.account_id" required class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500">
+                        <option :value="null" disabled>Seleccionar cuenta...</option>
+                        <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }} ({{ a.currency }})</option>
+                    </select>
+                </div>
+                <div v-else class="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <p class="text-sm text-amber-700">Esto va a revertir el pago y devolver <strong>{{ formatMoney(monthTotal) }}</strong> a la cuenta.</p>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" @click="showPayModal = false" class="px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200">Cancelar</button>
+                    <button type="submit" :disabled="payForm.processing" :class="payingCard.is_paid ? 'bg-amber-500 hover:bg-amber-600' : 'bg-gradient-to-r from-emerald-500 to-cyan-600'" class="px-6 py-2.5 text-sm font-medium text-white rounded-xl shadow-lg disabled:opacity-50">
+                        {{ payingCard.is_paid ? 'Deshacer pago' : 'Confirmar pago' }}
+                    </button>
                 </div>
             </form>
         </Modal>

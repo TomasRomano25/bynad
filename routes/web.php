@@ -55,6 +55,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/credit-cards/{creditCard}/expenses', [CreditCardController::class, 'storeExpense'])->name('credit-cards.expenses.store');
     Route::put('/credit-card-expenses/{expense}', [CreditCardController::class, 'updateExpense'])->name('credit-cards.expenses.update');
     Route::delete('/credit-card-expenses/{expense}', [CreditCardController::class, 'destroyExpense'])->name('credit-cards.expenses.destroy');
+    Route::post('/credit-cards/{creditCard}/pay-statement', [CreditCardController::class, 'payStatement'])->name('credit-cards.pay-statement');
 
     // Fixed Expenses
     Route::get('/fixed-expenses', [FixedExpenseController::class, 'index'])->name('fixed-expenses.index');
