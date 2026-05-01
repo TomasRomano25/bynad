@@ -81,6 +81,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/incomes/{income}', [IncomeController::class, 'update'])->name('incomes.update');
     Route::delete('/incomes/{income}', [IncomeController::class, 'destroy'])->name('incomes.destroy');
 
+    // Income jobs (catalogo de trabajos)
+    Route::post('/income-jobs', [\App\Http\Controllers\IncomeJobController::class, 'store'])->name('income-jobs.store');
+    Route::put('/income-jobs/{incomeJob}', [\App\Http\Controllers\IncomeJobController::class, 'update'])->name('income-jobs.update');
+    Route::delete('/income-jobs/{incomeJob}', [\App\Http\Controllers\IncomeJobController::class, 'destroy'])->name('income-jobs.destroy');
+
     // Assets
     Route::get('/assets', [AssetController::class, 'index'])->name('assets.index');
     Route::post('/assets', [AssetController::class, 'store'])->name('assets.store');

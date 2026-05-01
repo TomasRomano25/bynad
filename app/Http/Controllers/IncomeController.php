@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\Income;
+use App\Models\IncomeJob;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +35,7 @@ class IncomeController extends Controller
             $query->where('user_id', $filterUser);
         }
 
-        $incomes = $query->orderBy('date', 'desc')->get();
+        $incomes = $query->orderBy('id', 'desc')->get();
 
         $usdRate = Setting::getUsdRate();
 
@@ -64,6 +65,9 @@ class IncomeController extends Controller
 
         $accounts = Account::whereIn('user_id', $familyUserIds)->get();
         $familyUsers = $family ? $family->users()->get(['users.id', 'users.name']) : collect([$user]);
+        $incomeJobs = $family
+            ? IncomeJob::where('family_id', $family->id)->orderBy('name')->get()
+            : collect();
 
         $totalMonthArs = round($incomes->sum($toArs), 2);
 
@@ -71,6 +75,7 @@ class IncomeController extends Controller
             'incomes' => $incomes,
             'accounts' => $accounts,
             'familyUsers' => $familyUsers,
+            'incomeJobs' => $incomeJobs,
             'monthlyData' => $monthlyData,
             'bySource' => $bySource,
             'filters' => [
