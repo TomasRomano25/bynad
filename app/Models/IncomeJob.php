@@ -13,4 +13,12 @@ class IncomeJob extends Model
     {
         return $this->belongsTo(Family::class);
     }
+
+    public function incomesQuery()
+    {
+        $userIds = $this->family ? $this->family->users()->pluck('users.id') : collect();
+        return Income::query()
+            ->where('job', $this->name)
+            ->whereIn('user_id', $userIds);
+    }
 }

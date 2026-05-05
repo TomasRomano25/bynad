@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Models\AccountRetention;
 use App\Models\AccountTransfer;
 use App\Models\FixedExpense;
 use App\Models\Income;
@@ -21,17 +22,32 @@ class AccountController extends Controller
         $family = $user->families()->first();
         $familyUserIds = $family ? $family->users()->pluck('users.id')->toArray() : [$user->id];
 
+        $usdRate = Setting::getUsdRate();
+
         $accounts = Account::whereIn('user_id', $familyUserIds)
-            ->with('user')
+            ->with(['user', 'activeRetentions'])
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->get()
+            ->map(function ($a) use ($usdRate) {
+                $frozen = $a->frozenAmount();
+                $arr = $a->toArray();
+                $arr['frozen_amount']     = round($frozen, 2);
+                $arr['available_balance'] = round((float) $a->balance - $frozen, 2);
+                $arr['frozen_amount_usd'] = $a->currency === 'USD'
+                    ? round($frozen, 2)
+                    : round($frozen / $usdRate, 2);
+                $arr['available_balance_usd'] = $a->currency === 'USD'
+                    ? round((float) $a->balance - $frozen, 2)
+                    : round(((float) $a->balance - $frozen) / $usdRate, 2);
+                return $arr;
+            });
 
         $familyUsers = $family ? $family->users()->get(['users.id', 'users.name']) : collect([$user]);
 
         return Inertia::render('Accounts/Index', [
             'accounts' => $accounts,
             'familyUsers' => $familyUsers,
-            'usdRate' => Setting::getUsdRate(),
+            'usdRate' => $usdRate,
         ]);
     }
 
@@ -176,15 +192,70 @@ class AccountController extends Controller
 
         $sorted = $movements->sortByDesc('date')->values();
 
+        $retentions = $account->retentions()->orderByRaw('released_at IS NULL DESC')->orderByDesc('date')->get();
+        $frozen = $account->frozenAmount();
+
         return Inertia::render('Accounts/Show', [
             'account'   => $account->load('user'),
             'movements' => $sorted,
             'usdRate'   => $usdRate,
+            'retentions'        => $retentions,
+            'frozenAmount'      => round($frozen, 2),
+            'availableBalance'  => round((float) $account->balance - $frozen, 2),
             'summary'   => [
                 'total_in'  => round($movements->where('direction', '+')->sum('amount_ars'), 2),
                 'total_out' => round($movements->where('direction', '-')->sum('amount_ars'), 2),
             ],
         ]);
+    }
+
+    public function storeRetention(Request $request, Account $account)
+    {
+        $this->authorizeAccount($request, $account);
+
+        $validated = $request->validate([
+            'amount'      => 'required|numeric|min:0.01',
+            'currency'    => 'required|in:ARS,USD',
+            'description' => 'required|string|max:255',
+            'date'        => 'required|date',
+            'notes'       => 'nullable|string|max:500',
+        ], [
+            'amount.required'      => 'Ingresa el monto retenido.',
+            'description.required' => 'Describi la retencion (ej: PayPal en revision).',
+            'date.required'        => 'Indica la fecha de la retencion.',
+        ]);
+
+        AccountRetention::create([
+            'account_id'  => $account->id,
+            'amount'      => $validated['amount'],
+            'currency'    => $validated['currency'],
+            'description' => $validated['description'],
+            'date'        => $validated['date'],
+            'notes'       => $validated['notes'] ?? null,
+        ]);
+
+        return redirect()->back()->with('success', 'Retencion registrada.');
+    }
+
+    public function releaseRetention(Request $request, AccountRetention $retention)
+    {
+        $this->authorizeAccount($request, $retention->account);
+        $retention->update(['released_at' => now()->toDateString()]);
+        return redirect()->back()->with('success', 'Retencion liberada.');
+    }
+
+    public function destroyRetention(Request $request, AccountRetention $retention)
+    {
+        $this->authorizeAccount($request, $retention->account);
+        $retention->delete();
+        return redirect()->back()->with('success', 'Retencion eliminada.');
+    }
+
+    private function authorizeAccount(Request $request, ?Account $account): void
+    {
+        $family = $request->user()->families()->first();
+        $familyUserIds = $family ? $family->users()->pluck('users.id')->toArray() : [$request->user()->id];
+        abort_unless($account && in_array($account->user_id, $familyUserIds, true), 403);
     }
 
     public function store(Request $request)
@@ -270,8 +341,8 @@ class AccountController extends Controller
                 $from       = Account::findOrFail($transfer->from_account_id);
                 $to         = Account::findOrFail($transfer->to_account_id);
 
-                // Reverse old transfer
-                $from->balance += ($transfer->amount + $transfer->commission);
+                // Reverse old transfer (source only lost amount, not commission)
+                $from->balance += $transfer->amount;
                 $from->balance_usd = $from->currency === 'USD' ? round($from->balance, 2) : round($from->balance / $usdRate, 2);
                 $from->save();
 
@@ -283,16 +354,17 @@ class AccountController extends Controller
                 $amount     = (float) $validated['amount'];
                 $commission = (float) ($validated['commission'] ?? 0);
 
-                $from->balance -= ($amount + $commission);
+                $from->balance -= $amount;
                 $from->balance_usd = $from->currency === 'USD' ? round($from->balance, 2) : round($from->balance / $usdRate, 2);
                 $from->save();
 
+                $net = $amount - $commission;
                 if ($from->currency === $to->currency) {
-                    $received = $amount;
+                    $received = round($net, 2);
                 } elseif ($from->currency === 'USD') {
-                    $received = round($amount * $usdRate, 2);
+                    $received = round($net * $usdRate, 2);
                 } else {
-                    $received = round($amount / $usdRate, 2);
+                    $received = round($net / $usdRate, 2);
                 }
 
                 $to->balance += $received;
@@ -321,8 +393,8 @@ class AccountController extends Controller
                 $from    = Account::findOrFail($transfer->from_account_id);
                 $to      = Account::findOrFail($transfer->to_account_id);
 
-                // Reverse: restore from, deduct to
-                $from->balance += ($transfer->amount + $transfer->commission);
+                // Reverse: restore from (only amount was deducted), deduct to
+                $from->balance += $transfer->amount;
                 $from->balance_usd = $from->currency === 'USD' ? round($from->balance, 2) : round($from->balance / $usdRate, 2);
                 $from->save();
 
@@ -363,20 +435,21 @@ class AccountController extends Controller
                 $amount     = (float) $validated['amount'];
                 $commission = (float) ($validated['commission'] ?? 0);
 
-                // Deduct amount + commission from source
-                $from->balance -= ($amount + $commission);
+                // Deduct only the amount from source (commission is kept by intermediary)
+                $from->balance -= $amount;
                 $from->balance_usd = $from->currency === 'USD'
                     ? round($from->balance, 2)
                     : round($from->balance / $usdRate, 2);
                 $from->save();
 
-                // Convert to destination currency
+                // Convert amount to destination currency, then subtract commission
+                $net = $amount - $commission;
                 if ($from->currency === $to->currency) {
-                    $received = $amount;
+                    $received = round($net, 2);
                 } elseif ($from->currency === 'USD') {
-                    $received = round($amount * $usdRate, 2);
+                    $received = round($net * $usdRate, 2);
                 } else {
-                    $received = round($amount / $usdRate, 2);
+                    $received = round($net / $usdRate, 2);
                 }
 
                 $to->balance += $received;

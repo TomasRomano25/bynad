@@ -37,6 +37,30 @@ class Account extends Model
         return $this->hasMany(Income::class);
     }
 
+    public function retentions(): HasMany
+    {
+        return $this->hasMany(AccountRetention::class);
+    }
+
+    public function activeRetentions(): HasMany
+    {
+        return $this->hasMany(AccountRetention::class)->whereNull('released_at');
+    }
+
+    public function frozenAmount(): float
+    {
+        $usdRate = Setting::getUsdRate();
+        return (float) $this->activeRetentions()->get()->reduce(function ($sum, $r) use ($usdRate) {
+            if ($r->currency === $this->currency) {
+                return $sum + (float) $r->amount;
+            }
+            if ($this->currency === 'USD' && $r->currency === 'ARS') {
+                return $sum + (float) $r->amount / $usdRate;
+            }
+            return $sum + (float) $r->amount * $usdRate;
+        }, 0);
+    }
+
     public function recalculateBalance(): void
     {
         $totalIncomes = $this->incomes()->sum('amount');

@@ -9,7 +9,46 @@ const props = defineProps({ accounts: Array, familyUsers: Array, usdRate: Number
 
 const showModal = ref(false);
 const showTransferModal = ref(false);
+const showRetentionModal = ref(false);
+const retentionAccount = ref(null);
 const editing = ref(null);
+
+const retentionForm = useForm({
+    amount: 0,
+    currency: 'ARS',
+    description: '',
+    date: new Date().toISOString().slice(0, 10),
+    notes: '',
+});
+
+const openRetentionModal = (account) => {
+    retentionAccount.value = account;
+    retentionForm.reset();
+    retentionForm.currency = account.currency;
+    retentionForm.date = new Date().toISOString().slice(0, 10);
+    showRetentionModal.value = true;
+};
+
+const submitRetention = () => {
+    retentionForm.post(route('accounts.retentions.store', retentionAccount.value.id), {
+        onSuccess: () => { retentionForm.reset(); retentionForm.currency = retentionAccount.value.currency; },
+        preserveScroll: true,
+    });
+};
+
+const releaseRetention = (id) => {
+    useForm({}).post(route('account-retentions.release', id), { preserveScroll: true });
+};
+
+const deleteRetention = (id) => {
+    if (confirm('Eliminar esta retencion?')) {
+        useForm({}).delete(route('account-retentions.destroy', id), { preserveScroll: true });
+    }
+};
+
+const activeRetentions = computed(() =>
+    (retentionAccount.value?.active_retentions ?? []).filter(r => !r.released_at)
+);
 
 const transferForm = useForm({ from_account_id: '', to_account_id: '', amount: 0, commission: 0, notes: '' });
 const commissionMode = ref('flat'); // 'flat' | 'percent'
@@ -24,16 +63,23 @@ const commissionFlat = computed(() => {
     return commissionMode.value === 'percent' ? round(amt * c / 100, 2) : c;
 });
 
-const totalDebit = computed(() => (parseFloat(transferForm.amount) || 0) + commissionFlat.value);
+const totalDebit = computed(() => parseFloat(transferForm.amount) || 0);
 
 function round(v, d) { return Math.round(v * 10 ** d) / 10 ** d; }
 
+// Net amount destination receives (after commission deducted, before currency conversion)
+const destinationNet = computed(() => {
+    const a = parseFloat(transferForm.amount) || 0;
+    return round(a - commissionFlat.value, 2);
+});
+
+// What destination receives, expressed in destination currency
 const convertedAmount = computed(() => {
     if (!fromAccount.value || !toAccount.value) return null;
-    const a = parseFloat(transferForm.amount) || 0;
+    const net = destinationNet.value;
     if (fromAccount.value.currency === toAccount.value.currency) return null;
-    if (fromAccount.value.currency === 'USD') return formatMoney(a * props.usdRate);
-    return formatMoney(a / props.usdRate, 'USD');
+    if (fromAccount.value.currency === 'USD') return formatMoney(round(net * props.usdRate, 2));
+    return formatMoney(round(net / props.usdRate, 2), 'USD');
 });
 
 const submitTransfer = () => {
@@ -120,12 +166,28 @@ const typeIcons = {
                             </div>
                         </div>
                         <div class="flex gap-1">
+                            <button @click="openRetentionModal(account)" class="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Retenciones">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                            </button>
                             <button @click="openEdit(account)" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                             </button>
                             <button @click="destroy(account)" class="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                             </button>
+                        </div>
+                    </div>
+                    <div v-if="account.frozen_amount > 0" class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-xs">
+                        <div class="flex items-center justify-between">
+                            <span class="text-amber-700 font-medium flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                Retenido
+                            </span>
+                            <span class="text-amber-700 font-semibold">{{ formatMoney(account.frozen_amount, account.currency) }}</span>
+                        </div>
+                        <div class="flex justify-between text-amber-600 mt-0.5">
+                            <span>Disponible</span>
+                            <span class="font-semibold">{{ formatMoney(account.available_balance, account.currency) }}</span>
                         </div>
                     </div>
                     <div class="flex items-end justify-between">
@@ -197,17 +259,21 @@ const typeIcons = {
                         <span>Monto transferido</span>
                         <span>{{ formatMoney(transferForm.amount || 0, fromAccount?.currency ?? 'ARS') }}</span>
                     </div>
-                    <div v-if="commissionFlat > 0" class="flex justify-between text-gray-500">
-                        <span>Comisión</span>
-                        <span class="text-rose-500">- {{ formatMoney(commissionFlat, fromAccount?.currency ?? 'ARS') }}</span>
-                    </div>
                     <div class="flex justify-between font-semibold text-gray-800 border-t border-gray-200 pt-1.5">
-                        <span>Total a debitar</span>
+                        <span>Se debita de origen</span>
                         <span>{{ formatMoney(totalDebit, fromAccount?.currency ?? 'ARS') }}</span>
                     </div>
-                    <div v-if="convertedAmount" class="flex justify-between text-indigo-600 text-xs pt-0.5">
+                    <div v-if="commissionFlat > 0" class="flex justify-between text-gray-500">
+                        <span>Comisión (descuento)</span>
+                        <span class="text-rose-500">- {{ formatMoney(commissionFlat, fromAccount?.currency ?? 'ARS') }}</span>
+                    </div>
+                    <div v-if="commissionFlat > 0" class="flex justify-between text-emerald-600 font-medium text-sm">
                         <span>El destino recibe</span>
-                        <span>≈ {{ convertedAmount }}</span>
+                        <span>{{ formatMoney(destinationNet, fromAccount?.currency ?? 'ARS') }}</span>
+                    </div>
+                    <div v-if="convertedAmount" class="flex justify-between text-indigo-600 text-xs pt-0.5">
+                        <span>≈ en moneda destino</span>
+                        <span>{{ convertedAmount }}</span>
                     </div>
                 </div>
 
@@ -280,6 +346,66 @@ const typeIcons = {
                     </button>
                 </div>
             </form>
+        </Modal>
+
+        <!-- Retentions Modal -->
+        <Modal :show="showRetentionModal" @close="showRetentionModal = false" :title="'Retenciones - ' + (retentionAccount?.name ?? '')">
+            <div class="space-y-5">
+                <div v-if="retentionAccount && (retentionAccount.active_retentions?.length ?? 0) > 0" class="space-y-2">
+                    <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Activas</p>
+                    <div v-for="r in retentionAccount.active_retentions.filter(x => !x.released_at)" :key="r.id"
+                         class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                        <div class="min-w-0">
+                            <p class="text-sm font-medium text-gray-800 truncate">{{ r.description }}</p>
+                            <p class="text-xs text-gray-500">{{ r.date }} · {{ formatMoney(r.amount, r.currency) }}</p>
+                            <p v-if="r.notes" class="text-xs text-gray-400 italic">{{ r.notes }}</p>
+                        </div>
+                        <div class="flex gap-1 shrink-0 ml-3">
+                            <button @click="releaseRetention(r.id)" class="px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-100 rounded-lg hover:bg-emerald-200">Liberar</button>
+                            <button @click="deleteRetention(r.id)" class="px-2.5 py-1 text-xs font-medium text-rose-700 bg-rose-100 rounded-lg hover:bg-rose-200">Eliminar</button>
+                        </div>
+                    </div>
+                </div>
+                <div v-else class="text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3">No hay retenciones activas en esta cuenta.</div>
+
+                <form @submit.prevent="submitRetention" class="space-y-3 border-t border-gray-100 pt-4">
+                    <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Nueva retencion</p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Descripcion <span class="text-red-500">*</span></label>
+                        <input v-model="retentionForm.description" type="text" required maxlength="255"
+                               class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500"
+                               placeholder="Ej: PayPal en revision" />
+                        <p v-if="retentionForm.errors.description" class="text-rose-500 text-xs mt-1">{{ retentionForm.errors.description }}</p>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Monto <span class="text-red-500">*</span></label>
+                            <input v-model="retentionForm.amount" type="number" step="0.01" min="0.01" required
+                                   class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Moneda</label>
+                            <select v-model="retentionForm.currency" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500">
+                                <option value="ARS">ARS</option><option value="USD">USD</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Fecha <span class="text-red-500">*</span></label>
+                            <input v-model="retentionForm.date" type="date" required class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500" />
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                        <textarea v-model="retentionForm.notes" rows="2" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-amber-500" placeholder="Detalle, motivo, fecha estimada de liberacion..."></textarea>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-2">
+                        <button type="button" @click="showRetentionModal = false" class="px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200">Cerrar</button>
+                        <button type="submit" :disabled="retentionForm.processing" class="px-6 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-lg shadow-amber-200/50 disabled:opacity-50">
+                            Agregar retencion
+                        </button>
+                    </div>
+                </form>
+            </div>
         </Modal>
     </AuthenticatedLayout>
 </template>

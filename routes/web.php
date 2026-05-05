@@ -45,6 +45,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/accounts/{account}', [AccountController::class, 'show'])->name('accounts.show');
     Route::put('/accounts/{account}', [AccountController::class, 'update'])->name('accounts.update');
     Route::delete('/accounts/{account}', [AccountController::class, 'destroy'])->name('accounts.destroy');
+    Route::post('/accounts/{account}/retentions', [AccountController::class, 'storeRetention'])->name('accounts.retentions.store');
+    Route::post('/account-retentions/{retention}/release', [AccountController::class, 'releaseRetention'])->name('account-retentions.release');
+    Route::delete('/account-retentions/{retention}', [AccountController::class, 'destroyRetention'])->name('account-retentions.destroy');
 
     // Credit Cards
     Route::get('/credit-cards', [CreditCardController::class, 'index'])->name('credit-cards.index');
@@ -82,6 +85,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/incomes/{income}', [IncomeController::class, 'destroy'])->name('incomes.destroy');
 
     // Income jobs (catalogo de trabajos)
+    Route::get('/jobs', [\App\Http\Controllers\IncomeJobController::class, 'index'])->name('jobs.index');
+    Route::get('/jobs/{incomeJob}', [\App\Http\Controllers\IncomeJobController::class, 'show'])->name('jobs.show');
     Route::post('/income-jobs', [\App\Http\Controllers\IncomeJobController::class, 'store'])->name('income-jobs.store');
     Route::put('/income-jobs/{incomeJob}', [\App\Http\Controllers\IncomeJobController::class, 'update'])->name('income-jobs.update');
     Route::delete('/income-jobs/{incomeJob}', [\App\Http\Controllers\IncomeJobController::class, 'destroy'])->name('income-jobs.destroy');
