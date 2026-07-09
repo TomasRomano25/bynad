@@ -323,10 +323,10 @@ const typeIcons = {
                         <label class="block text-sm font-medium text-gray-700 mb-1">Saldo inicial</label>
                         <input v-model="form.balance" type="number" step="0.01" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" />
                     </div>
-                    <div v-if="editing" class="bg-gray-50 rounded-xl px-4 py-2.5 border border-gray-200">
-                        <p class="text-xs text-gray-500 mb-0.5">Saldo actual</p>
-                        <p class="text-sm font-semibold text-gray-800">{{ formatMoney(editing.balance, editing.currency) }}</p>
-                        <p class="text-xs text-gray-400">Se actualiza automáticamente</p>
+                    <div v-if="editing">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Saldo actual (ajustable)</label>
+                        <input v-model="form.balance" type="number" step="0.01" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500" />
+                        <p class="text-xs text-gray-400 mt-1">Normalmente se actualiza solo. Editalo si necesitas corregir el saldo real.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Moneda</label>

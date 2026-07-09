@@ -300,15 +300,31 @@ class AccountController extends Controller
             'institution' => 'nullable|string|max:255',
             'currency'    => 'required|string|max:10',
             'color'       => 'nullable|string|max:7',
+            'balance'     => 'nullable|numeric',
         ], [
             'user_id.required' => 'Selecciona el titular de la cuenta.',
             'name.required'    => 'El nombre de la cuenta es obligatorio.',
+            'balance.numeric'  => 'El saldo debe ser un numero valido.',
         ]);
 
         try {
-            // Balance is never overwritten on edit — it's managed automatically
-            // by income/expense/transfer operations
-            $account->update($validated);
+            // Balance is normally managed automatically by income/expense/transfer
+            // operations, but the user can adjust it manually here to reconcile.
+            $manualBalance = $request->has('balance') && $request->get('balance') !== null;
+            $balance = $manualBalance ? (float) $validated['balance'] : null;
+            unset($validated['balance']);
+
+            $account->fill($validated);
+
+            if ($manualBalance) {
+                $usdRate = Setting::getUsdRate();
+                $account->balance = $balance;
+                $account->balance_usd = $account->currency === 'USD'
+                    ? round($balance, 2)
+                    : round($balance / $usdRate, 2);
+            }
+
+            $account->save();
 
             return redirect()->back()->with('success', 'La cuenta "' . $validated['name'] . '" fue actualizada.');
         } catch (\Exception $e) {

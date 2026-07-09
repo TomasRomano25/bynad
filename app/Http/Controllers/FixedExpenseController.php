@@ -140,11 +140,12 @@ class FixedExpenseController extends Controller
 
                 $wasPaid           = (bool) $payment->paid;
                 $previousAccountId = $payment->account_id;
-                $previousAmount    = (float) ($payment->amount_paid ?: $fixedExpense->amount);
 
-                // Reverse the previous deduction if it was already paid.
+                // Reverse the previous deduction if it was already paid. We use the
+                // current expense amount/currency (not the stored amount_paid) so that
+                // legacy/corrupt payment rows can't restore a bogus figure.
                 if ($wasPaid && $previousAccountId) {
-                    $this->adjustAccountBalance($previousAccountId, $previousAmount, $currency, '+', $usdRate);
+                    $this->adjustAccountBalance($previousAccountId, (float) $fixedExpense->amount, $currency, '+', $usdRate);
                 }
 
                 $nowPaid = ! $wasPaid;
