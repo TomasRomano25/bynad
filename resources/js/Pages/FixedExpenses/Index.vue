@@ -34,8 +34,10 @@ const togglePayment = (expense) => {
     });
 };
 
-const totalExpenses = () => props.expenses.reduce((acc, e) => acc + parseFloat(e.amount), 0);
-const totalPaid = () => props.expenses.filter(e => e.is_paid).reduce((acc, e) => acc + parseFloat(e.amount), 0);
+// Convierte cada gasto a ARS (los USD por la cotizacion) para no mezclar monedas al sumar.
+const toArs = (e) => ((e.currency ?? 'ARS') === 'USD' ? parseFloat(e.amount || 0) * props.usdRate : parseFloat(e.amount || 0));
+const totalExpenses = () => props.expenses.reduce((acc, e) => acc + toArs(e), 0);
+const totalPaid = () => props.expenses.filter(e => e.is_paid).reduce((acc, e) => acc + toArs(e), 0);
 const totalPending = () => totalExpenses() - totalPaid();
 </script>
 
@@ -62,14 +64,17 @@ const totalPending = () => totalExpenses() - totalPaid();
                 <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 text-center">
                     <p class="text-xs text-gray-500 mb-1">Total Gastos Fijos</p>
                     <p class="text-xl font-bold text-gray-800">{{ formatMoney(totalExpenses()) }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">≈ {{ formatMoney(totalExpenses() / usdRate, 'USD') }}</p>
                 </div>
                 <div class="bg-emerald-50 rounded-2xl p-5 border border-emerald-100 text-center">
                     <p class="text-xs text-emerald-600 mb-1">Pagados</p>
                     <p class="text-xl font-bold text-emerald-700">{{ formatMoney(totalPaid()) }}</p>
+                    <p class="text-xs text-emerald-500/70 mt-0.5">≈ {{ formatMoney(totalPaid() / usdRate, 'USD') }}</p>
                 </div>
                 <div class="bg-amber-50 rounded-2xl p-5 border border-amber-100 text-center">
                     <p class="text-xs text-amber-600 mb-1">Pendientes</p>
                     <p class="text-xl font-bold text-amber-700">{{ formatMoney(totalPending()) }}</p>
+                    <p class="text-xs text-amber-500/70 mt-0.5">≈ {{ formatMoney(totalPending() / usdRate, 'USD') }}</p>
                 </div>
             </div>
 

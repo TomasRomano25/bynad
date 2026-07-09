@@ -9,6 +9,14 @@ export const formatMoney = (amount, currency = 'ARS') => {
 
 export const formatDate = (date) => {
     if (!date) return '';
+    // Parse plain YYYY-MM-DD (o con hora) como fecha LOCAL para evitar el corrimiento
+    // de zona horaria (new Date('2026-07-01') se interpreta como UTC y en AR se va al dia anterior).
+    if (typeof date === 'string') {
+        const m = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) {
+            return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+    }
     return new Date(date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
