@@ -61,7 +61,10 @@ class RegisteredUserController extends Controller
         }
 
         if (!$user->families()->exists()) {
-            $family = Family::create(['name' => 'Familia de ' . $request->name]);
+            $family = Family::create([
+                'name' => 'Familia de ' . $request->name,
+                'usd_rate' => \App\Models\Setting::getDefaultUsdRate(),
+            ]);
             $family->users()->attach($user->id, ['role' => 'admin']);
         }
 

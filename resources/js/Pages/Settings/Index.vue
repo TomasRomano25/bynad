@@ -44,9 +44,9 @@ const loadBackups = async () => {
                 <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                     <h3 class="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
                         <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        Cotizacion USD
+                        Cotizacion USD (valor por defecto)
                     </h3>
-                    <p class="text-sm text-gray-500 mb-3">Este valor se usa para convertir entre pesos y dolares en toda la plataforma.</p>
+                    <p class="text-sm text-gray-500 mb-3">Valor del dolar por defecto para las <strong>familias nuevas</strong>. Cada familia puede cambiar su propia cotizacion desde su Perfil, y eso es lo que se usa en su cuenta.</p>
                     <div class="flex items-center gap-3">
                         <span class="text-sm text-gray-600">1 USD =</span>
                         <input v-model="form.usd_rate" type="number" step="0.01" class="w-40 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />

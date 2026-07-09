@@ -7,7 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Family extends Model
 {
-    protected $fillable = ['name'];
+    protected $fillable = ['name', 'usd_rate'];
+
+    protected $casts = [
+        'usd_rate' => 'decimal:2',
+    ];
 
     public function users(): BelongsToMany
     {

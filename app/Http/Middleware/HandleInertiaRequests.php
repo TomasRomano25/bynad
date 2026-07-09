@@ -42,6 +42,7 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'error'   => fn () => $request->session()->get('error'),
             ],
+            'usdRate' => fn () => $user ? $user->usdRate() : 1200,
             'menuItems' => fn () => MenuItem::where('is_active', true)->orderBy('position')->get(),
         ];
     }

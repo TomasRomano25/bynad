@@ -7,6 +7,7 @@ use App\Models\FixedExpense;
 use App\Models\FixedExpensePayment;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class FixedExpenseController extends Controller
@@ -124,61 +125,89 @@ class FixedExpenseController extends Controller
     public function togglePayment(Request $request, FixedExpense $fixedExpense)
     {
         try {
-            $month   = $request->get('month', now()->month);
-            $year    = $request->get('year', now()->year);
-            $usdRate = Setting::getUsdRate();
+            $month    = (int) $request->get('month', now()->month);
+            $year     = (int) $request->get('year', now()->year);
+            $usdRate  = Setting::getUsdRate();
+            $currency = $fixedExpense->currency ?? 'ARS';
+            $nowPaid  = false;
 
-            $wasAlreadyExisting = FixedExpensePayment::where([
-                'fixed_expense_id' => $fixedExpense->id,
-                'month' => $month,
-                'year'  => $year,
-            ])->exists();
+            DB::transaction(function () use ($request, $fixedExpense, $month, $year, $usdRate, $currency, &$nowPaid) {
+                $payment = FixedExpensePayment::firstOrNew([
+                    'fixed_expense_id' => $fixedExpense->id,
+                    'month' => $month,
+                    'year'  => $year,
+                ]);
 
-            $payment = FixedExpensePayment::firstOrNew([
-                'fixed_expense_id' => $fixedExpense->id,
-                'month' => $month,
-                'year'  => $year,
-            ]);
+                $wasPaid           = (bool) $payment->paid;
+                $previousAccountId = $payment->account_id;
+                $previousAmount    = (float) ($payment->amount_paid ?: $fixedExpense->amount);
 
-            $previouslyPaid    = $wasAlreadyExisting && $payment->paid;
-            $previousAccountId = $payment->account_id;
-
-            $payment->paid       = !($wasAlreadyExisting && $payment->paid);
-            $payment->paid_date  = $payment->paid ? now() : null;
-            $payment->amount_paid     = $payment->paid ? $fixedExpense->amount : null;
-            $payment->amount_paid_usd = $payment->paid ? round($fixedExpense->amount / $usdRate, 2) : null;
-            $payment->account_id = $request->get('account_id', $fixedExpense->account_id);
-            $payment->save();
-
-            // Adjust account balance
-            $accountId = $payment->paid ? $payment->account_id : $previousAccountId;
-            if ($accountId) {
-                $account = Account::find($accountId);
-                if ($account) {
-                    if ($payment->paid) {
-                        // Deduct from account
-                        $deduct = $account->currency === 'USD'
-                            ? (float) $payment->amount_paid_usd
-                            : (float) $payment->amount_paid;
-                        $account->balance -= $deduct;
-                    } else {
-                        // Restore to account (was previously paid)
-                        $restore = $account->currency === 'USD'
-                            ? round($fixedExpense->amount / $usdRate, 2)
-                            : (float) $fixedExpense->amount;
-                        $account->balance += $restore;
-                    }
-                    $account->balance_usd = $account->currency === 'USD'
-                        ? round($account->balance, 2)
-                        : round($account->balance / $usdRate, 2);
-                    $account->save();
+                // Reverse the previous deduction if it was already paid.
+                if ($wasPaid && $previousAccountId) {
+                    $this->adjustAccountBalance($previousAccountId, $previousAmount, $currency, '+', $usdRate);
                 }
-            }
 
-            $status = $payment->paid ? 'pagado' : 'pendiente';
+                $nowPaid = ! $wasPaid;
+
+                if ($nowPaid) {
+                    $amount    = (float) $fixedExpense->amount;
+                    $accountId = $request->get('account_id', $fixedExpense->account_id);
+
+                    $payment->paid            = true;
+                    $payment->paid_date       = now();
+                    $payment->amount_paid     = $amount;
+                    $payment->amount_paid_usd = $currency === 'USD'
+                        ? round($amount, 2)
+                        : round($amount / $usdRate, 2);
+                    $payment->account_id      = $accountId;
+
+                    if ($accountId) {
+                        $this->adjustAccountBalance($accountId, $amount, $currency, '-', $usdRate);
+                    }
+                } else {
+                    $payment->paid            = false;
+                    $payment->paid_date       = null;
+                    $payment->amount_paid     = null;
+                    $payment->amount_paid_usd = null;
+                }
+
+                $payment->save();
+            });
+
+            $status = $nowPaid ? 'pagado' : 'pendiente';
             return redirect()->back()->with('success', '"' . $fixedExpense->name . '" marcado como ' . $status . '.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'No se pudo actualizar el estado de pago. Intenta nuevamente.');
         }
+    }
+
+    /**
+     * Apply a balance change to an account, converting between the expense
+     * currency and the account currency when they differ.
+     */
+    private function adjustAccountBalance(int $accountId, float $amount, string $currency, string $direction, float $usdRate): void
+    {
+        $account = Account::find($accountId);
+        if (! $account) {
+            return;
+        }
+
+        if ($account->currency === 'USD' && $currency === 'ARS') {
+            $delta = round($amount / $usdRate, 2);
+        } elseif ($account->currency === 'ARS' && $currency === 'USD') {
+            $delta = round($amount * $usdRate, 2);
+        } else {
+            $delta = $amount;
+        }
+
+        $account->balance = $direction === '+'
+            ? $account->balance + $delta
+            : $account->balance - $delta;
+
+        $account->balance_usd = $account->currency === 'USD'
+            ? round($account->balance, 2)
+            : round($account->balance / $usdRate, 2);
+
+        $account->save();
     }
 }

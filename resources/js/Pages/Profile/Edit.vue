@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import DeleteUserForm from './Partials/DeleteUserForm.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
+import UpdateUsdRateForm from './Partials/UpdateUsdRateForm.vue';
 import { Head } from '@inertiajs/vue3';
 
 defineProps({
@@ -11,6 +12,14 @@ defineProps({
     },
     status: {
         type: String,
+    },
+    usdRate: {
+        type: Number,
+        default: null,
+    },
+    familyName: {
+        type: String,
+        default: null,
     },
 });
 </script>
@@ -35,6 +44,16 @@ defineProps({
                     <UpdateProfileInformationForm
                         :must-verify-email="mustVerifyEmail"
                         :status="status"
+                        class="max-w-xl"
+                    />
+                </div>
+
+                <div
+                    class="bg-white p-4 shadow sm:rounded-lg sm:p-8"
+                >
+                    <UpdateUsdRateForm
+                        :usd-rate="usdRate"
+                        :family-name="familyName"
                         class="max-w-xl"
                     />
                 </div>

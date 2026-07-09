@@ -16,6 +16,7 @@ class FamilyController extends Controller
         ]);
 
         try {
+            $validated['usd_rate'] = \App\Models\Setting::getDefaultUsdRate();
             $family = Family::create($validated);
             $family->users()->attach($request->user()->id, ['role' => 'admin']);
 

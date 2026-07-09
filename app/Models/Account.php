@@ -73,7 +73,7 @@ class Account extends Model
 
         $this->balance = $totalIncomes - $totalFixed - $totalVariable - $totalSupermarket;
 
-        $usdRate = Setting::where('key', 'usd_rate')->value('value') ?: 1200;
+        $usdRate = $this->user?->usdRate() ?? Setting::getDefaultUsdRate();
         $this->balance_usd = round($this->balance / $usdRate, 2);
         $this->save();
     }

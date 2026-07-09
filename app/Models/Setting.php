@@ -22,7 +22,27 @@ class Setting extends Model
         );
     }
 
+    /**
+     * USD rate used across the app.
+     *
+     * The rate is configured per family. When there is an authenticated user we
+     * return their family's rate; otherwise (console, jobs, guests) we fall back
+     * to the global default stored in settings, which also seeds new families.
+     */
     public static function getUsdRate(): float
+    {
+        $user = auth()->user();
+        if ($user) {
+            return $user->usdRate();
+        }
+
+        return (float) static::get('usd_rate', 1200);
+    }
+
+    /**
+     * The global default rate (used to seed new families and as fallback).
+     */
+    public static function getDefaultUsdRate(): float
     {
         return (float) static::get('usd_rate', 1200);
     }

@@ -89,7 +89,7 @@ const totalPending = () => totalExpenses() - totalPaid();
                         <tbody>
                             <tr v-for="expense in expenses" :key="expense.id" class="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                                 <td class="px-6 py-4">
-                                    <button @click="togglePayment(expense)" :class="expense.is_paid ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400'" class="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:scale-110">
+                                    <button @click="togglePayment(expense)" :title="!expense.account_id ? 'Este gasto no tiene cuenta asignada: al pagarlo no se descuenta de ninguna cuenta. Editalo y asignale una cuenta.' : (expense.is_paid ? 'Pagado' : 'Marcar como pagado')" :class="expense.is_paid ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400'" class="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:scale-110">
                                         <svg v-if="expense.is_paid" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                                         <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                     </button>
@@ -97,6 +97,10 @@ const totalPending = () => totalExpenses() - totalPaid();
                                 <td class="px-6 py-4">
                                     <p class="text-sm font-medium text-gray-800">{{ expense.name }}</p>
                                     <p v-if="expense.category" class="text-xs text-gray-400">{{ expense.category }}</p>
+                                    <button v-if="!expense.account_id" @click="openEdit(expense)" class="mt-1 inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 sm:hidden">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3l-6.93-12a2 2 0 00-3.48 0l-6.93 12a2 2 0 001.74 3z" /></svg>
+                                        Sin cuenta
+                                    </button>
                                 </td>
                                 <td class="px-6 py-4">
                                     <p class="text-sm font-bold text-gray-800">{{ formatMoney(expense.amount, expense.currency ?? 'ARS') }}</p>
@@ -105,7 +109,13 @@ const totalPending = () => totalExpenses() - totalPaid();
                                         <template v-else>≈ {{ formatMoney(expense.amount / usdRate, 'USD') }}</template>
                                     </p>
                                 </td>
-                                <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">{{ expense.account?.name || '-' }}</span></td>
+                                <td class="px-6 py-4 hidden sm:table-cell">
+                                    <span v-if="expense.account?.name" class="text-sm text-gray-600">{{ expense.account.name }}</span>
+                                    <button v-else @click="openEdit(expense)" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-600 text-xs font-medium hover:bg-amber-100" title="Sin cuenta: al pagar no se descuenta de ningun saldo. Click para asignar una cuenta.">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3l-6.93-12a2 2 0 00-3.48 0l-6.93 12a2 2 0 001.74 3z" /></svg>
+                                        Sin cuenta
+                                    </button>
+                                </td>
                                 <td class="px-6 py-4 hidden sm:table-cell"><span class="text-sm text-gray-600">Dia {{ expense.due_day || '-' }}</span></td>
                                 <td class="px-6 py-4 hidden md:table-cell"><span class="text-sm text-gray-600">{{ expense.user?.name }}</span></td>
                                 <td class="px-6 py-4 text-right">

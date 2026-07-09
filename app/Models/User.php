@@ -41,6 +41,31 @@ class User extends Authenticatable
         return $this->belongsToMany(Family::class)->withPivot('role')->withTimestamps();
     }
 
+    private ?Family $primaryFamilyMemo = null;
+
+    private bool $primaryFamilyResolved = false;
+
+    /**
+     * The family this user primarily belongs to (first joined).
+     */
+    public function primaryFamily(): ?Family
+    {
+        if (! $this->primaryFamilyResolved) {
+            $this->primaryFamilyMemo = $this->families()->first();
+            $this->primaryFamilyResolved = true;
+        }
+
+        return $this->primaryFamilyMemo;
+    }
+
+    /**
+     * The USD rate configured for this user's family (shared across the family).
+     */
+    public function usdRate(): float
+    {
+        return (float) ($this->primaryFamily()?->usd_rate ?? 1200);
+    }
+
     public function accounts(): HasMany
     {
         return $this->hasMany(Account::class);
